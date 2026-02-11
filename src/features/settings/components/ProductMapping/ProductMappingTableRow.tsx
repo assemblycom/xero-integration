@@ -93,10 +93,11 @@ export const ProductMappingTableRow = ({
     setOpenDropdownId(null)
   }
 
-  const renderUSD = (amount: number) =>
-    new Intl.NumberFormat('en-US', {
+  const currencyCode = item.price.currency || 'USD'
+  const formatCurrency = (amount: number) =>
+    new Intl.NumberFormat(undefined, {
       style: 'currency',
-      currency: 'USD',
+      currency: currencyCode,
     }).format(amount || 0)
 
   return (
@@ -107,7 +108,7 @@ export const ProductMappingTableRow = ({
           {item.product.name}
         </div>
         <div className="text-body-xs text-text-secondary leading-5">
-          {renderUSD(item.price.amount / 100)}
+          {formatCurrency(item.price.amount / 100)}
         </div>
       </td>
 
@@ -136,7 +137,7 @@ export const ProductMappingTableRow = ({
                   {xeroItem.name}
                 </div>
                 <div className="text-body-xs text-text-secondary leading-5">
-                  {renderUSD(xeroItem.amount)}
+                  {formatCurrency(xeroItem.amount)}
                 </div>
               </div>
             ) : (
@@ -195,7 +196,7 @@ export const ProductMappingTableRow = ({
                         {item.name}
                       </span>
                       <span className="ps-2 text-body-micro text-gray-500 leading-body-micro">
-                        {renderUSD(item.amount)}
+                        {formatCurrency(item.amount)}
                       </span>
                     </button>
                   ))
