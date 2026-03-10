@@ -101,12 +101,12 @@ class SyncedContactsService extends AuthenticatedXeroService {
     if (!client && !company) {
       throw new APIError('Client or company is required to create a contact', status.BAD_REQUEST)
     }
-
+    const isNotPlaceholderCompany = company && !company.isPlaceholder
     const companyId = z.string().parse(company?.id || client?.companyIds?.[0])
 
     let contactPayload: ContactCreatePayload
 
-    if (company && !company.isPlaceholder) {
+    if (isNotPlaceholderCompany) {
       contactPayload = serializeContactForCompany(
         company,
         company.customFields?.email || client?.email,
@@ -124,8 +124,10 @@ class SyncedContactsService extends AuthenticatedXeroService {
 
       await this.db.insert(syncedContacts).values({
         portalId: this.user.portalId,
-        clientOrCompanyId: company ? companyId : z.string().parse(client?.id),
-        userType: company ? SyncedContactUserType.COMPANY : SyncedContactUserType.CLIENT,
+        clientOrCompanyId: isNotPlaceholderCompany ? companyId : z.string().parse(client?.id),
+        userType: isNotPlaceholderCompany
+          ? SyncedContactUserType.COMPANY
+          : SyncedContactUserType.CLIENT,
         contactId: z.string().parse(contact.contactID),
         tenantId: this.connection.tenantId,
       })
@@ -135,7 +137,7 @@ class SyncedContactsService extends AuthenticatedXeroService {
         eventType: SyncEventType.CREATED,
         status: SyncStatus.SUCCESS,
         syncDate: new Date(),
-        copilotId: company ? companyId : z.string().parse(client?.id),
+        copilotId: isNotPlaceholderCompany ? companyId : z.string().parse(client?.id),
         xeroId: contact.contactID,
         customerName: contact.name,
         customerEmail: contact.emailAddress,
@@ -151,7 +153,7 @@ class SyncedContactsService extends AuthenticatedXeroService {
         failedSyncLogPayload: {
           entityType: SyncEntityType.CUSTOMER,
           eventType: SyncEventType.CREATED,
-          copilotId: company ? companyId : z.string().parse(client?.id),
+          copilotId: isNotPlaceholderCompany ? companyId : z.string().parse(client?.id),
           customerName: contactPayload.name,
           customerEmail: contactPayload.emailAddress,
         },
@@ -189,7 +191,7 @@ class SyncedContactsService extends AuthenticatedXeroService {
 
     const syncLogsService = new SyncLogsService(this.user, this.connection)
 
-    if ((useCompanyName || !client) && company) {
+    if ((useCompanyName || !client) && company && !company.isPlaceholder) {
       if (contact.name !== `${company.name}`) {
         try {
           const updatedContact = await this.xero.updateContact(this.connection.tenantId, {
