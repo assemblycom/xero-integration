@@ -106,7 +106,7 @@ class SyncedContactsService extends AuthenticatedXeroService {
 
     let contactPayload: ContactCreatePayload
 
-    if (company) {
+    if (company && !company.isPlaceholder) {
       contactPayload = serializeContactForCompany(
         company,
         company.customFields?.email || client?.email,
