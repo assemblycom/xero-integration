@@ -108,6 +108,7 @@ class SyncedInvoicesService extends AuthenticatedXeroService {
         customerName,
       })
     } catch (error: unknown) {
+      console.error(JSON.stringify(error))
       syncedInvoiceRecord = await this.updateInvoiceRecord(data, undefined, 'failed')
       throw new APIError('Failed to store synced invoice record', status.INTERNAL_SERVER_ERROR, {
         error,
