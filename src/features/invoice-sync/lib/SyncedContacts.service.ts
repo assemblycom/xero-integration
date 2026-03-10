@@ -36,6 +36,14 @@ class SyncedContactsService extends AuthenticatedXeroService {
       company = await this.copilot.getCompany(companyId)
     }
 
+    const useNonPlaceholderCompanyName = useCompanyName && !company?.isPlaceholder
+
+    if (!useNonPlaceholderCompanyName && !clientId)
+      throw new APIError(
+        'Cannot use company name of place holder company for invoice',
+        status.BAD_REQUEST,
+      )
+
     const query = this.db
       .select({ contactID: syncedContacts.contactId })
       .from(syncedContacts)
@@ -43,10 +51,13 @@ class SyncedContactsService extends AuthenticatedXeroService {
         and(
           eq(syncedContacts.portalId, this.user.portalId),
           eq(syncedContacts.tenantId, this.connection.tenantId),
-          eq(syncedContacts.clientOrCompanyId, useCompanyName || !clientId ? companyId : clientId),
+          eq(
+            syncedContacts.clientOrCompanyId,
+            useNonPlaceholderCompanyName || !clientId ? companyId : clientId,
+          ),
           eq(
             syncedContacts.userType,
-            useCompanyName || !clientId
+            useNonPlaceholderCompanyName || !clientId
               ? SyncedContactUserType.COMPANY
               : SyncedContactUserType.CLIENT,
           ),
@@ -59,7 +70,7 @@ class SyncedContactsService extends AuthenticatedXeroService {
     if (contact) {
       const xeroContact = await this.xero.getContact(this.connection.tenantId, contact.contactID)
       if (xeroContact) {
-        await this.validateXeroContact(xeroContact, useCompanyName, client, company)
+        await this.validateXeroContact(xeroContact, useNonPlaceholderCompanyName, client, company)
         return xeroContact
       }
 
@@ -71,7 +82,7 @@ class SyncedContactsService extends AuthenticatedXeroService {
             eq(syncedContacts.tenantId, this.connection.tenantId),
             eq(
               syncedContacts.clientOrCompanyId,
-              useCompanyName || !clientId ? companyId : clientId,
+              useNonPlaceholderCompanyName || !clientId ? companyId : clientId,
             ),
           ),
         )
@@ -167,7 +178,7 @@ class SyncedContactsService extends AuthenticatedXeroService {
    */
   async validateXeroContact(
     contact: ValidContact,
-    useCompanyName: boolean,
+    useNonPlaceholderCompanyName: boolean,
     client?: ClientResponse,
     company?: CompanyResponse,
   ) {
@@ -176,13 +187,13 @@ class SyncedContactsService extends AuthenticatedXeroService {
       contact.name,
       `(${contact.name}, ${contact.firstName} ${contact.lastName}, ${contact.emailAddress})`,
       'using company name:',
-      useCompanyName,
+      useNonPlaceholderCompanyName,
       'with client & company:',
       client,
       company,
     )
 
-    if (useCompanyName && !company) {
+    if (useNonPlaceholderCompanyName && !company) {
       throw new APIError(
         'Failed to fetch company details while using use company name setting',
         status.INTERNAL_SERVER_ERROR,
@@ -191,7 +202,7 @@ class SyncedContactsService extends AuthenticatedXeroService {
 
     const syncLogsService = new SyncLogsService(this.user, this.connection)
 
-    if ((useCompanyName || !client) && company && !company.isPlaceholder) {
+    if ((useNonPlaceholderCompanyName || !client) && company) {
       if (contact.name !== `${company.name}`) {
         try {
           const updatedContact = await this.xero.updateContact(this.connection.tenantId, {
