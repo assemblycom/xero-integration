@@ -55,6 +55,24 @@ class SettingsService extends AuthenticatedXeroService {
       )
     return syncSettings
   }
+
+  async updateSettings(payload: Partial<SettingsFields>) {
+    logger.info(
+      'SettingsService#updateSettings :: Updating settings for portalId',
+      this.user.portalId,
+    )
+    const [updatedSettings] = await this.db
+      .update(settings)
+      .set(payload)
+      .where(
+        and(
+          eq(settings.portalId, this.user.portalId),
+          eq(settings.tenantId, this.connection.tenantId),
+        ),
+      )
+      .returning(this.settingsFields)
+    return updatedSettings
+  }
 }
 
 export default SettingsService

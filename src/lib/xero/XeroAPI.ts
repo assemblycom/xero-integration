@@ -5,6 +5,7 @@ import {
   type Account,
   AccountType,
   type BankTransaction,
+  type CountryCode,
   Invoice,
   type Item,
   type Payment,
@@ -94,6 +95,11 @@ class XeroAPI {
   async getActiveTenantId(): Promise<string> {
     const connections = await this.xero.updateTenants(false) // Get an updated set of tenants
     return connections[0].tenantId
+  }
+
+  async getOrganisationCountryCode(tenantId: string): Promise<CountryCode | undefined> {
+    const { body } = await this.xero.accountingApi.getOrganisations(tenantId)
+    return body.organisations?.[0]?.countryCode
   }
 
   async getInvoiceById(tenantId: string, invoiceID: string): Promise<Invoice | undefined> {
