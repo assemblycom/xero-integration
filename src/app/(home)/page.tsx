@@ -9,6 +9,7 @@ import { SettingsContextProvider } from '@settings/context/SettingsContext'
 import ProductMappingsService from '@settings/lib/ProductMappings.service'
 import SettingsService from '@settings/lib/Settings.service'
 import { SyncLogsService } from '@sync-logs/lib/SyncLogs.service'
+import { CountryCode } from 'xero-node'
 import type { PageProps } from '@/app/(home)/types'
 import type { SettingsFields } from '@/db/schema/settings.schema'
 import type { XeroConnection, XeroConnectionWithTokenSet } from '@/db/schema/xeroConnections.schema'
@@ -17,6 +18,7 @@ import { serializeClientUser } from '@/lib/copilot/models/ClientUser.model'
 import User from '@/lib/copilot/models/User.model'
 import logger from '@/lib/logger'
 import type { ClientXeroItem } from '@/lib/xero/types'
+import XeroAPI from '@/lib/xero/XeroAPI'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -32,6 +34,13 @@ const getSettings = async (user: User, connection: XeroConnection) => {
     settings = defaultSettings
   }
   return settings
+}
+
+const disabledSyncForPortal = async (user: User, connection: XeroConnection) => {
+  if (!connection.tenantId) return
+
+  const settingsService = new SettingsService(user, connection as XeroConnectionWithTokenSet)
+  await settingsService.updateSettings({ isSyncEnabled: false })
 }
 
 const getProductMappings = async (
@@ -64,6 +73,20 @@ const getLastSyncedAt = async (user: User, connection: XeroConnection): Promise<
   return await syncLogsService.getLastSyncedAt()
 }
 
+const getCountryCode = async (connection: XeroConnection): Promise<CountryCode | null> => {
+  if (!connection.tenantId || !connection.tokenSet) return null
+
+  try {
+    const xero = new XeroAPI()
+    xero.setTokenSet(connection.tokenSet)
+    const countryCode = await xero.getOrganisationCountryCode(connection.tenantId)
+    return countryCode || null
+  } catch (error) {
+    logger.error('app/(home)/page :: Error fetching organisation country code:', error)
+    return null
+  }
+}
+
 const Home = async ({ searchParams }: PageProps) => {
   const sp = await searchParams
   const user = await User.authenticate(sp.token)
@@ -76,12 +99,24 @@ const Home = async ({ searchParams }: PageProps) => {
     copilot.getWorkspace(),
   ])
 
-  const [settings, productMappings, xeroItems, lastSyncedAt] = await Promise.all([
+  const [settings, productMappings, xeroItems, lastSyncedAt, countryCode] = await Promise.all([
     getSettings(user, connection),
     getProductMappings(user, connection),
     getXeroItems(user, connection),
     getLastSyncedAt(user, connection),
+    getCountryCode(connection),
   ])
+
+  // Disable sync for non-US Xero tenants
+  if (
+    countryCode &&
+    countryCode !== CountryCode.US &&
+    settings.isSyncEnabled &&
+    connection.tenantId
+  ) {
+    settings.isSyncEnabled && (await disabledSyncForPortal(user, connection))
+    settings.isSyncEnabled = false
+  }
 
   const clientUser = serializeClientUser(user)
   logger.info(
@@ -102,6 +137,7 @@ const Home = async ({ searchParams }: PageProps) => {
       needsReconnection={needsReconnection}
       lastSyncedAt={lastSyncedAt}
       workspace={workspace}
+      countryCode={countryCode}
     >
       <SettingsContextProvider
         {...settings}
