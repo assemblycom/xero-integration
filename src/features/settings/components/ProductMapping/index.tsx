@@ -10,8 +10,8 @@ export const ProductMapping = () => {
   return (
     <div className="mb-5">
       <Checkbox
-        label="Sync Assembly products to Xero"
-        description="Automatically create and update Xero items when products are created or updated in Assembly."
+        label="Sync Assembly services to Xero"
+        description="Automatically create and update Xero items when services are created or updated in Assembly."
         checked={syncProductsAutomatically}
         onChange={() => updateSettings({ syncProductsAutomatically: !syncProductsAutomatically })}
       />

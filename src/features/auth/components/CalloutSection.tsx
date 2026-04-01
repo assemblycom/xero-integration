@@ -73,7 +73,7 @@ export const CalloutSection = () => {
         <Callout
           title={'Confirm your mapping before getting started.'}
           description={
-            'Set your product mappings and review configuration settings to best set up your sync.'
+            'Set your service mappings and review configuration settings to best set up your sync.'
           }
           variant={'warning'}
           actionProps={{

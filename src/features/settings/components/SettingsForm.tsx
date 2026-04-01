@@ -18,7 +18,7 @@ export const SettingsForm = () => {
 
       <form className="settings-form mt-2">
         <Accordion
-          title="Product Mapping"
+          title="Service Mapping"
           content=<ProductMapping />
           extra=<ConfirmSettings mode="product" />
         />

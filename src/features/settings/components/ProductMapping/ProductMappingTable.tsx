@@ -18,7 +18,7 @@ export const ProductMappingTable = ({ items }: ProductMappingTableProps) => {
         <thead>
           <tr className="border-gray-200 border-b">
             <th className="w-[46.5%] pt-5 pr-3 pb-2 pl-4 font-normal text-[11px] uppercase leading-3 tracking-[1px] lg:w-[372px]">
-              ASSEMBLY PRODUCTS
+              ASSEMBLY SERVICES
             </th>
 
             <th className="w-[7%] border-gray-200 border-l px-5 pt-3 pb-[6px] lg:w-[56px]">
@@ -45,13 +45,13 @@ export const ProductMappingTable = ({ items }: ProductMappingTableProps) => {
           ) : (
             <tr className="text-center">
               <td colSpan={3} className="py-11 text-sm text-text-primary leading-[22px]">
-                Start by creating a product in Assembly.
+                Start by creating a service in Assembly.
                 <button
                   type="button"
                   onClick={() => null}
                   className="ms-2 cursor-pointer text-text-link"
                 >
-                  Create Product
+                  Create Service
                 </button>
               </td>
             </tr>
