@@ -1,8 +1,8 @@
 import 'server-only'
 
+import type { AssemblyAPI as SDK } from '@assembly-js/node-sdk'
+import { assemblyApi } from '@assembly-js/node-sdk'
 import { type InvoiceCreatedEvent, InvoiceCreatedEventSchema } from '@invoice-sync/types'
-import type { CopilotAPI as SDK } from 'copilot-node-sdk'
-import { copilotApi } from 'copilot-node-sdk'
 import z from 'zod'
 import env from '@/config/server.env'
 import { MAX_FETCH_COPILOT_RESOURCES } from '@/constants/limits'
@@ -43,7 +43,7 @@ export class CopilotAPI {
     private readonly token: string,
     readonly customApiKey?: string,
   ) {
-    this.copilot = copilotApi({
+    this.copilot = assemblyApi({
       apiKey: customApiKey ?? env.COPILOT_API_KEY,
       token,
     })
