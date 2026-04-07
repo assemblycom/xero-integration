@@ -16,12 +16,12 @@
     "ex": "tsx --tsconfig tsconfig.tsx.json --require dotenv/config --require tsconfig-paths/register"
   },
   "dependencies": {
+    "@assembly-js/node-sdk": "^3.19.1",
     "@sentry/nextjs": "^10.29.0",
     "@types/deep-equal": "^1.0.4",
     "@types/html-to-text": "^9.0.4",
     "bottleneck": "^2.19.5",
     "copilot-design-system": "^2.2.3",
-    "copilot-node-sdk": "^3.16.0",
     "dayjs": "^1.11.19",
     "deep-equal": "^2.2.3",
     "dotenv": "^17.2.1",
