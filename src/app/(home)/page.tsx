@@ -3,6 +3,7 @@ import { CalloutSection } from '@auth/components/CalloutSection'
 import { RealtimeXeroConnections } from '@auth/components/RealtimeXeroConnections'
 import { AuthContextProvider } from '@auth/context/AuthContext'
 import AuthService from '@auth/lib/Auth.service'
+import XeroConnectionsService from '@auth/lib/XeroConnections.service'
 import { SettingsForm } from '@settings/components/SettingsForm'
 import { defaultSettings } from '@settings/constants/defaults'
 import { SettingsContextProvider } from '@settings/context/SettingsContext'
@@ -23,6 +24,32 @@ import XeroAPI from '@/lib/xero/XeroAPI'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 export const maxDuration = 300
+
+const hasValidAccessToken = (connection: XeroConnection): boolean => {
+  if (!connection.tokenSet) return false
+  return connection.tokenSet.access_token && connection.tokenSet.expires_at
+    ? connection.tokenSet.expires_at * 1000 > Date.now()
+    : false
+}
+
+const ensureValidConnection = async (
+  user: User,
+  connection: XeroConnection,
+): Promise<XeroConnection> => {
+  if (hasValidAccessToken(connection)) return connection
+
+  if (!connection.tokenSet?.refresh_token) return connection
+
+  try {
+    const xero = new XeroAPI()
+    const tokenSet = await xero.refreshWithRefreshToken(connection.tokenSet.refresh_token)
+    const connectionsService = new XeroConnectionsService(user)
+    return await connectionsService.updateConnectionForWorkspace({ tokenSet, status: true })
+  } catch (error) {
+    logger.error('app/(home)/page :: Failed to refresh Xero access token:', error)
+    return { ...connection, status: false }
+  }
+}
 
 const getSettings = async (user: User, connection: XeroConnection) => {
   let settings: SettingsFields
@@ -47,7 +74,7 @@ const getProductMappings = async (
   user: User,
   connection: XeroConnection,
 ): ReturnType<ProductMappingsService['getProductMappings']> => {
-  if (!connection.tenantId) return []
+  if (!connection.tenantId || !connection.status) return []
 
   const productMappingsService = new ProductMappingsService(
     user,
@@ -57,7 +84,7 @@ const getProductMappings = async (
 }
 
 const getXeroItems = async (user: User, connection: XeroConnection): Promise<ClientXeroItem[]> => {
-  if (!connection.tenantId) return []
+  if (!connection.tenantId || !connection.status) return []
 
   const productMappingsService = new ProductMappingsService(
     user,
@@ -74,7 +101,7 @@ const getLastSyncedAt = async (user: User, connection: XeroConnection): Promise<
 }
 
 const getCountryCode = async (connection: XeroConnection): Promise<CountryCode | null> => {
-  if (!connection.tenantId || !connection.tokenSet) return null
+  if (!connection.tenantId || !connection.status || !connection.tokenSet) return null
 
   try {
     const xero = new XeroAPI()
@@ -94,10 +121,11 @@ const Home = async ({ searchParams }: PageProps) => {
   const authService = new AuthService(user)
 
   const copilot = new CopilotAPI(user.token)
-  const [connection, workspace] = await Promise.all([
+  const [rawConnection, workspace] = await Promise.all([
     authService.authorizeXeroForCopilotWorkspace(true),
     copilot.getWorkspace(),
   ])
+  const connection = await ensureValidConnection(user, rawConnection)
 
   const [settings, productMappings, xeroItems, lastSyncedAt, countryCode] = await Promise.all([
     getSettings(user, connection),
