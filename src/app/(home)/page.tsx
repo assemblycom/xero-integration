@@ -30,6 +30,33 @@ const hasValidAccessToken = (connection: XeroConnection): boolean => {
   return connection.tokenSet.expires_at * 1000 > Date.now()
 }
 
+const isXeroAuthError = (error: unknown): boolean => {
+  try {
+    const message = error instanceof Error ? error.message : String(error)
+    const parsed = JSON.parse(message)
+    const statusCode = parsed?.response?.statusCode
+    return statusCode === 401 || statusCode === 403
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Wraps a promise to catch Xero API errors gracefully.
+ * Returns the fallback value on failure and flags auth errors via the callback.
+ */
+const withXeroErrorHandler = <T,>(
+  promise: Promise<T>,
+  fallback: T,
+  context: string,
+  onAuthError: () => void,
+): Promise<T> =>
+  promise.catch((error) => {
+    logger.error(`app/(home)/page :: ${context}:`, error)
+    if (isXeroAuthError(error)) onAuthError()
+    return fallback
+  })
+
 const ensureValidConnection = async (
   user: User,
   connection: XeroConnection,
@@ -62,7 +89,7 @@ const getSettings = async (user: User, connection: XeroConnection) => {
 }
 
 const disabledSyncForPortal = async (user: User, connection: XeroConnection) => {
-  if (!connection.tenantId) return
+  if (!connection.tenantId || !connection.tokenSet) return
 
   const settingsService = new SettingsService(user, connection as XeroConnectionWithTokenSet)
   await settingsService.updateSettings({ isSyncEnabled: false })
@@ -92,7 +119,7 @@ const getXeroItems = async (user: User, connection: XeroConnection): Promise<Cli
 }
 
 const getLastSyncedAt = async (user: User, connection: XeroConnection): Promise<Date | null> => {
-  if (!connection.tenantId) return null
+  if (!connection.tenantId || !connection.tokenSet) return null
 
   const syncLogsService = new SyncLogsService(user, connection as XeroConnectionWithTokenSet)
   return await syncLogsService.getLastSyncedAt()
@@ -101,15 +128,10 @@ const getLastSyncedAt = async (user: User, connection: XeroConnection): Promise<
 const getCountryCode = async (connection: XeroConnection): Promise<CountryCode | null> => {
   if (!connection.tenantId || !connection.status || !connection.tokenSet) return null
 
-  try {
-    const xero = new XeroAPI()
-    xero.setTokenSet(connection.tokenSet)
-    const countryCode = await xero.getOrganisationCountryCode(connection.tenantId)
-    return countryCode || null
-  } catch (error) {
-    logger.error('app/(home)/page :: Error fetching organisation country code:', error)
-    return null
-  }
+  const xero = new XeroAPI()
+  xero.setTokenSet(connection.tokenSet)
+  const countryCode = await xero.getOrganisationCountryCode(connection.tenantId)
+  return countryCode || null
 }
 
 const Home = async ({ searchParams }: PageProps) => {
@@ -125,12 +147,32 @@ const Home = async ({ searchParams }: PageProps) => {
   ])
   const connection = await ensureValidConnection(user, rawConnection)
 
+  let xeroAuthFailed = false
+  const onAuthError = () => {
+    xeroAuthFailed = true
+  }
+
   const [settings, productMappings, xeroItems, lastSyncedAt, countryCode] = await Promise.all([
     getSettings(user, connection),
-    getProductMappings(user, connection),
-    getXeroItems(user, connection),
+    withXeroErrorHandler(
+      getProductMappings(user, connection),
+      [],
+      'Error fetching product mappings',
+      onAuthError,
+    ),
+    withXeroErrorHandler(
+      getXeroItems(user, connection),
+      [],
+      'Error fetching xero items',
+      onAuthError,
+    ),
     getLastSyncedAt(user, connection),
-    getCountryCode(connection),
+    withXeroErrorHandler(
+      getCountryCode(connection),
+      null,
+      'Error fetching organisation country code',
+      onAuthError,
+    ),
   ])
 
   // Disable sync for non-US Xero tenants
@@ -140,7 +182,7 @@ const Home = async ({ searchParams }: PageProps) => {
     settings.isSyncEnabled &&
     connection.tenantId
   ) {
-    settings.isSyncEnabled && (await disabledSyncForPortal(user, connection))
+    await disabledSyncForPortal(user, connection)
     settings.isSyncEnabled = false
   }
 
@@ -153,7 +195,8 @@ const Home = async ({ searchParams }: PageProps) => {
   )
 
   const needsReconnection =
-    !!connection.tokenSet && (connection.tokenSet.expires_at || 0) * 1000 < Date.now()
+    xeroAuthFailed ||
+    (!!connection.tokenSet && (connection.tokenSet.expires_at || 0) * 1000 < Date.now())
 
   return (
     <AuthContextProvider
