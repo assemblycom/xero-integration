@@ -26,10 +26,8 @@ export const revalidate = 0
 export const maxDuration = 300
 
 const hasValidAccessToken = (connection: XeroConnection): boolean => {
-  if (!connection.tokenSet) return false
-  return connection.tokenSet.access_token && connection.tokenSet.expires_at
-    ? connection.tokenSet.expires_at * 1000 > Date.now()
-    : false
+  if (!connection.tokenSet?.access_token || !connection.tokenSet?.expires_at) return false
+  return connection.tokenSet.expires_at * 1000 > Date.now()
 }
 
 const ensureValidConnection = async (
