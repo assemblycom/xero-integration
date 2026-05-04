@@ -33,10 +33,10 @@ class AuthService extends BaseService {
       tenantId = await xero.getActiveTenantId()
     } catch (error) {
       logger.error(
-        'XeroConnectionsService#handleXeroConnectionCallback :: Error handling Xero callback:',
+        'AuthService#handleXeroConnectionCallback :: Error handling Xero callback:',
         error,
       )
-      throw new Error('Error handling Xero callback')
+      throw new Error('Error handling Xero callback', { cause: error })
     }
 
     const xeroConnectionsService = new XeroConnectionsService(this.user)
