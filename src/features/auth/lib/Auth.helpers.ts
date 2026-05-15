@@ -41,7 +41,7 @@ export const sendAuthorizationFailedNotification = async (
     notificationPromises.push(copilotBottleneck.schedule(sendNotification))
   }
 
-  await Promise.all(notificationPromises)
+  await Promise.allSettled(notificationPromises)
 
   if (e && e instanceof Error) {
     logger.error(
