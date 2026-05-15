@@ -18,26 +18,27 @@ export const sendAuthorizationFailedNotification = async (
 
   for (const internalUser of internalUsers.data) {
     const senderId = z.uuid().parse(user.internalUserId ?? connection?.initiatedBy)
-    const promise = user.copilot.createNotification({
-      senderId,
-      senderType: 'internalUser',
-      recipientInternalUserId: internalUser.id,
-      deliveryTargets: {
-        inProduct: {
-          title: 'Xero Integration Has Stopped Working',
-          body: 'Your Xero integration encountered an error and has stopped syncing. Please reconnect to avoid any disruptions.',
+    const sendNotification = () =>
+      user.copilot.createNotification({
+        senderId,
+        senderType: 'internalUser',
+        recipientInternalUserId: internalUser.id,
+        deliveryTargets: {
+          inProduct: {
+            title: 'Xero Integration Has Stopped Working',
+            body: 'Your Xero integration encountered an error and has stopped syncing. Please reconnect to avoid any disruptions.',
+          },
+          email: env.FLAG_DISABLE_NOTIFICATION_EMAILS
+            ? undefined
+            : {
+                header: 'Your Xero Sync has stopped working',
+                subject: 'Your Xero Sync has stopped working',
+                body: 'Your Xero integration encountered an error and has stopped syncing. Please reconnect to avoid any disruptions.',
+                title: 'Reconnect Xero',
+              },
         },
-        email: env.FLAG_DISABLE_NOTIFICATION_EMAILS
-          ? undefined
-          : {
-              header: 'Your Xero Sync has stopped working',
-              subject: 'Your Xero Sync has stopped working',
-              body: 'Your Xero integration encountered an error and has stopped syncing. Please reconnect to avoid any disruptions.',
-              title: 'Reconnect Xero',
-            },
-      },
-    })
-    notificationPromises.push(copilotBottleneck.schedule(() => promise))
+      })
+    notificationPromises.push(copilotBottleneck.schedule(sendNotification))
   }
 
   await Promise.all(notificationPromises)
