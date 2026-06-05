@@ -1,6 +1,5 @@
 import { type Contact, Invoice, TaxRate } from 'xero-node'
 import z from 'zod'
-import { AccountCode } from '@/lib/xero/constants'
 import type XeroAPI from '@/lib/xero/XeroAPI'
 
 /**
@@ -24,7 +23,7 @@ export const LineItemSchema = z
     lineItemID: z.uuid().optional(),
     itemCode: z.string().optional(),
     // Unique code to identify Xero item
-    accountCode: z.enum(AccountCode),
+    accountCode: z.string().min(1),
     accountId: z.string().optional(),
   })
   .superRefine((data, ctx) => {

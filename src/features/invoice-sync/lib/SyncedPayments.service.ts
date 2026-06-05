@@ -16,6 +16,7 @@ import { SyncEntityType, SyncEventType, SyncStatus } from '@/db/schema/syncLogs.
 import APIError from '@/errors/APIError'
 import logger from '@/lib/logger'
 import AuthenticatedXeroService from '@/lib/xero/AuthenticatedXero.service'
+import RegionService from '@/lib/xero/Region.service'
 
 class SyncedPaymentsService extends AuthenticatedXeroService {
   async getPaymentForInvoiceId(copilotInvoiceId: string) {
@@ -58,6 +59,9 @@ class SyncedPaymentsService extends AuthenticatedXeroService {
   }
 
   async createPlatformExpensePayment(data: PaymentSucceededEvent): Promise<BankTransaction> {
+    const regionService = new RegionService(this.user, this.connection)
+    const regionConfig = await regionService.getRegionConfig()
+
     try {
       logger.info(
         'SyncedPaymentsService#createPlatformExpensePayment :: Creating platform expense payment for',
@@ -68,8 +72,8 @@ class SyncedPaymentsService extends AuthenticatedXeroService {
 
       const accountsService = new SyncedAccountsService(this.user, this.connection)
       const [assetAccount, expenseAccount] = await Promise.all([
-        accountsService.getOrCreateCopilotAssetAccount(),
-        accountsService.getOrCreateCopilotExpenseAccount(),
+        accountsService.getOrCreateCopilotAssetAccount(regionConfig),
+        accountsService.getOrCreateCopilotExpenseAccount(regionConfig),
       ])
 
       // Create an expense invoice
