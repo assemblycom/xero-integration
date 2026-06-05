@@ -1,0 +1,1 @@
+ALTER TABLE "settings" ADD COLUMN "country_code" varchar(8);

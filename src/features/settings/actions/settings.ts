@@ -30,6 +30,7 @@ export const updateSettingsAction = async (
         'initialInvoiceSettingsMapping',
         'initialProductSettingsMapping',
         'isSyncEnabled',
+        'countryCode',
       ]),
     )
 

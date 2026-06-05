@@ -71,6 +71,13 @@
       "when": 1765202046215,
       "tag": "20251208135406_add-tenant-id-to-uq-in-synced-contacts",
       "breakpoints": false
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1780580743823,
+      "tag": "20260604134543_add_country_code_to_settings",
+      "breakpoints": false
     }
   ]
 }

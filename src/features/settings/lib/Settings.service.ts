@@ -15,6 +15,7 @@ class SettingsService extends AuthenticatedXeroService {
     'isSyncEnabled',
     'initialInvoiceSettingsMapping',
     'initialProductSettingsMapping',
+    'countryCode',
   ])
 
   private readonly MAX_RETRY_ATTEMPTS = 3

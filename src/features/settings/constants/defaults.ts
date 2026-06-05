@@ -7,4 +7,5 @@ export const defaultSettings: SettingsFields = {
   initialInvoiceSettingsMapping: false,
   initialProductSettingsMapping: false,
   isSyncEnabled: false,
+  countryCode: null,
 }
