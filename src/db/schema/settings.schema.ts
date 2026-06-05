@@ -14,6 +14,9 @@ export const settings = pgTable(
     // Active Tenant ID (most recently connected Xero organization)
     tenantId: uuid().notNull(),
 
+    // Xero organisation country code (e.g. 'US', 'AU'); null until first resolved
+    countryCode: varchar({ length: 8 }),
+
     // Settings form checkbox flags
     syncProductsAutomatically: boolean().notNull().default(false),
     addAbsorbedFees: boolean().notNull().default(false),
