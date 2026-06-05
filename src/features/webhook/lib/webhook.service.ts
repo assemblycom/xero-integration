@@ -20,6 +20,7 @@ import { SyncStatus } from '@/db/schema/syncLogs.schema'
 import APIError from '@/errors/APIError'
 import logger from '@/lib/logger'
 import AuthenticatedXeroService from '@/lib/xero/AuthenticatedXero.service'
+import RegionService from '@/lib/xero/Region.service'
 import { type ItemUpdatePayload, ItemUpdatePayloadSchema } from '@/lib/xero/types'
 import { htmlToText } from '@/utils/html'
 import { sleep } from '@/utils/sleep'
@@ -32,6 +33,13 @@ class WebhookService extends AuthenticatedXeroService {
       this.user.token,
     )
     logger.info('WebhookService#handleEvent :: Received webhook event data', data)
+
+    // Gate sync to supported Xero regions (US, AU). getRegionConfig throws APIError with
+    // status.OK for unsupported regions, which the catch below treats as "ignore this event".
+    // The inner sync services resolve the region again; that re-resolve is a cheap DB read
+    // once this call has persisted the country code, so we don't thread the value through.
+    const regionService = new RegionService(this.user, this.connection)
+    await regionService.getRegionConfig()
 
     const eventHandlerMap: Record<WebhookEvent['eventType'], (data: unknown) => Promise<unknown>> =
       {

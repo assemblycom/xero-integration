@@ -17,12 +17,6 @@ import z from 'zod'
 import env from '@/config/server.env'
 import APIError from '@/errors/APIError'
 import logger from '@/lib/logger'
-import {
-  AccountCode,
-  ASSET_ACCOUNT_NAME,
-  EXPENSE_ACCOUNT_NAME,
-  SALES_ACCOUNT_NAME,
-} from '@/lib/xero/constants'
 import type {
   ContactCreatePayload,
   CreateInvoicePayload,
@@ -32,6 +26,8 @@ import type {
 } from '@/lib/xero/types'
 import { getServerUrl } from '@/utils/serverUrl'
 import { genRandomString } from '@/utils/string'
+
+type AccountPropertyType = { code: string; name: string }
 
 class XeroAPI {
   private readonly xero: XeroClient
@@ -124,13 +120,14 @@ class XeroAPI {
     tenantId: string,
     invoiceID: string,
     amount: number,
+    salesAccountCode: string,
   ): Promise<Payment | undefined> {
     // Note: We can't just update the invoice status to "PAID", we need to create an actual payment for the invoice
     // Ref: https://developer.xero.com/documentation/api/accounting/payments#post-payments
     const { body } = await this.xero.accountingApi.createPayment(tenantId, {
       invoice: { invoiceID },
       code: 'ACCREC',
-      account: { code: AccountCode.SALES },
+      account: { code: salesAccountCode },
       amount,
     })
     return body.payments?.[0]
@@ -273,21 +270,27 @@ class XeroAPI {
     })
   }
 
-  async createFixedAssetsAccount(tenantId: string): Promise<Account | undefined> {
+  async createFixedAssetsAccount(
+    tenantId: string,
+    account: AccountPropertyType,
+  ): Promise<Account | undefined> {
     const { body } = await this.xero.accountingApi.createAccount(tenantId, {
-      name: ASSET_ACCOUNT_NAME,
+      name: account.name,
       bankAccountNumber: genRandomString(10),
-      code: AccountCode.BANK,
+      code: account.code,
       type: AccountType.BANK,
       description: 'Asset account that is charged for Assembly processing fees',
     })
     return body.accounts?.[0]
   }
 
-  async createSalesAccount(tenantId: string): Promise<Account | undefined> {
+  async createSalesAccount(
+    tenantId: string,
+    account: AccountPropertyType,
+  ): Promise<Account | undefined> {
     const { body } = await this.xero.accountingApi.createAccount(tenantId, {
-      name: SALES_ACCOUNT_NAME,
-      code: AccountCode.SALES,
+      name: account.name,
+      code: account.code,
       type: AccountType.SALES,
       description: 'Revenue from selling goods or products.',
       enablePaymentsToAccount: true,
@@ -295,10 +298,13 @@ class XeroAPI {
     return body.accounts?.[0]
   }
 
-  async createExpenseAccount(tenantId: string): Promise<Account | undefined> {
+  async createExpenseAccount(
+    tenantId: string,
+    account: AccountPropertyType,
+  ): Promise<Account | undefined> {
     const { body } = await this.xero.accountingApi.createAccount(tenantId, {
-      name: EXPENSE_ACCOUNT_NAME,
-      code: AccountCode.MERCHANT_FEES,
+      name: account.name,
+      code: account.code,
       type: AccountType.EXPENSE,
       description: 'Expense account that is charged for Assembly processing fees',
       enablePaymentsToAccount: true,

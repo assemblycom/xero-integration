@@ -19,6 +19,8 @@ import { SyncEntityType, SyncEventType, SyncStatus } from '@/db/schema/syncLogs.
 import APIError from '@/errors/APIError'
 import logger from '@/lib/logger'
 import AuthenticatedXeroService from '@/lib/xero/AuthenticatedXero.service'
+import RegionService from '@/lib/xero/Region.service'
+import type { RegionConfig } from '@/lib/xero/region'
 import {
   CreateInvoicePayloadSchema,
   type CreateInvoicePayload as InvoiceCreatePayload,
@@ -38,17 +40,29 @@ class SyncedInvoicesService extends AuthenticatedXeroService {
   }> {
     logger.info('SyncedInvoicesService#syncInvoiceToXero :: Syncing invoice to xero:', data.id)
 
-    const taxRatePromise = this.getTaxRate(data)
+    const regionService = new RegionService(this.user, this.connection)
+    const regionConfig = await regionService.getRegionConfig()
+
+    const taxRatePromise = this.getTaxRate(data, regionConfig)
     const contactPromise = this.getContact(data)
     const priceIdToXeroItemPromise = this.getPriceIdToXeroItem(data)
+
+    // Xero rejects an invoice line whose accountCode doesn't exist in the org's chart of accounts
+    const syncedAccountsService = new SyncedAccountsService(this.user, this.connection)
+    const salesAccountPromise = syncedAccountsService.getOrCreateCopilotSalesAccount(regionConfig)
 
     const [
       taxRate,
       { contactID, emailAddress: customerEmail, name: customerName },
       priceIdToXeroItem,
-    ] = await Promise.all([taxRatePromise, contactPromise, priceIdToXeroItemPromise])
+    ] = await Promise.all([
+      taxRatePromise,
+      contactPromise,
+      priceIdToXeroItemPromise,
+      salesAccountPromise,
+    ])
 
-    const lineItems = serializeLineItems(data.lineItems, priceIdToXeroItem, taxRate)
+    const lineItems = serializeLineItems(data.lineItems, priceIdToXeroItem, regionConfig, taxRate)
     if (!lineItems.length) {
       logger.info('No valid line items to sync to Xero invoice. Skipping sync...')
       return {
@@ -224,14 +238,19 @@ class SyncedInvoicesService extends AuthenticatedXeroService {
       }
     }
 
+    // Resolved after the idempotency check (so replays skip the work)
+    const regionService = new RegionService(this.user, this.connection)
+    const regionConfig = await regionService.getRegionConfig()
+
     try {
       const syncedAccountsService = new SyncedAccountsService(this.user, this.connection)
-      await syncedAccountsService.getOrCreateCopilotSalesAccount()
+      await syncedAccountsService.getOrCreateCopilotSalesAccount(regionConfig)
 
       const payment = await this.xero.markInvoicePaid(
         this.connection.tenantId,
         xeroInvoiceId,
         z.coerce.number().parse(invoice.total),
+        regionConfig.accountCodes.sales,
       )
 
       if (!payment) {
@@ -399,7 +418,7 @@ class SyncedInvoicesService extends AuthenticatedXeroService {
     return lastSyncedInvoice ? lastSyncedInvoice.createdAt : null
   }
 
-  private async getTaxRate(data: InvoiceCreatedEvent) {
+  private async getTaxRate(data: InvoiceCreatedEvent, regionConfig: RegionConfig) {
     logger.info(
       'SyncedInvoicesService#getTaxRate :: Fetching tax rate for',
       data.taxAmount,
@@ -407,7 +426,9 @@ class SyncedInvoicesService extends AuthenticatedXeroService {
     )
 
     const xeroTaxService = new SyncedTaxRatesService(this.user, this.connection)
-    return data.taxAmount ? await xeroTaxService.getTaxRateForItem(data.taxPercentage) : undefined
+    return data.taxAmount
+      ? await xeroTaxService.getTaxRateForItem(data.taxPercentage, regionConfig)
+      : undefined
   }
 
   private async getContact(data: InvoiceCreatedEvent) {
