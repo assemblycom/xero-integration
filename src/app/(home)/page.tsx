@@ -10,7 +10,7 @@ import { SettingsContextProvider } from '@settings/context/SettingsContext'
 import ProductMappingsService from '@settings/lib/ProductMappings.service'
 import SettingsService from '@settings/lib/Settings.service'
 import { SyncLogsService } from '@sync-logs/lib/SyncLogs.service'
-import { CountryCode } from 'xero-node'
+import type { CountryCode } from 'xero-node'
 import type { PageProps } from '@/app/(home)/types'
 import type { SettingsFields } from '@/db/schema/settings.schema'
 import type { XeroConnection, XeroConnectionWithTokenSet } from '@/db/schema/xeroConnections.schema'
@@ -18,6 +18,7 @@ import { CopilotAPI } from '@/lib/copilot/CopilotAPI'
 import { serializeClientUser } from '@/lib/copilot/models/ClientUser.model'
 import User from '@/lib/copilot/models/User.model'
 import logger from '@/lib/logger'
+import { isSupportedCountry } from '@/lib/xero/region'
 import type { ClientXeroItem } from '@/lib/xero/types'
 import XeroAPI from '@/lib/xero/XeroAPI'
 
@@ -86,13 +87,6 @@ const getSettings = async (user: User, connection: XeroConnection) => {
     settings = defaultSettings
   }
   return settings
-}
-
-const disabledSyncForPortal = async (user: User, connection: XeroConnection) => {
-  if (!connection.tenantId || !connection.tokenSet) return
-
-  const settingsService = new SettingsService(user, connection as XeroConnectionWithTokenSet)
-  await settingsService.updateSettings({ isSyncEnabled: false })
 }
 
 const getProductMappings = async (
@@ -175,15 +169,24 @@ const Home = async ({ searchParams }: PageProps) => {
     ),
   ])
 
-  // Disable sync for non-US Xero tenants
-  if (
-    countryCode &&
-    countryCode !== CountryCode.US &&
-    settings.isSyncEnabled &&
-    connection.tenantId
-  ) {
-    await disabledSyncForPortal(user, connection)
-    settings.isSyncEnabled = false
+  // Persist the resolved country code and gate sync to supported regions (US, AU)
+  if (countryCode && connection.tenantId) {
+    const patch: Partial<SettingsFields> = {}
+
+    if (settings.countryCode !== String(countryCode)) {
+      patch.countryCode = String(countryCode)
+      settings.countryCode = String(countryCode)
+    }
+
+    if (!isSupportedCountry(countryCode) && settings.isSyncEnabled) {
+      patch.isSyncEnabled = false
+      settings.isSyncEnabled = false
+    }
+
+    if (Object.keys(patch).length) {
+      const settingsService = new SettingsService(user, connection as XeroConnectionWithTokenSet)
+      await settingsService.updateSettings(patch)
+    }
   }
 
   const clientUser = serializeClientUser(user)
@@ -206,7 +209,7 @@ const Home = async ({ searchParams }: PageProps) => {
       needsReconnection={needsReconnection}
       lastSyncedAt={lastSyncedAt}
       workspace={workspace}
-      countryCode={countryCode}
+      countryCode={countryCode ?? (settings.countryCode as CountryCode | null)}
     >
       <SettingsContextProvider
         {...settings}

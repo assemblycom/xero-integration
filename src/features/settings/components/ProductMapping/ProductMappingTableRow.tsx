@@ -1,8 +1,10 @@
+import { useAuthContext } from '@auth/hooks/useAuth'
 import type { ProductMapping } from '@items-sync/types'
 import { useDropdown } from '@settings/hooks/useDropdown'
 import { useSettingsContext } from '@settings/hooks/useSettings'
 import { Icon } from 'copilot-design-system'
 import { useEffect, useRef, useState } from 'react'
+import { formatCurrencyForRegion } from '@/lib/xero/region'
 import type { ClientXeroItem } from '@/lib/xero/types'
 
 interface ProductMappingTableRowProps {
@@ -18,6 +20,7 @@ export const ProductMappingTableRow = ({
 }: ProductMappingTableRowProps) => {
   const { dropdownRef } = useDropdown({ setOpenDropdownId })
   const { productMappings, updateSettings, xeroItems, dropdownXeroItems } = useSettingsContext()
+  const { countryCode } = useAuthContext()
 
   const xeroItem = xeroItems.find((i) => i.itemID === item.item?.itemID)
 
@@ -93,11 +96,7 @@ export const ProductMappingTableRow = ({
     setOpenDropdownId(null)
   }
 
-  const renderUSD = (amount: number) =>
-    new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount || 0)
+  const renderCurrency = (amount: number) => formatCurrencyForRegion(amount, countryCode)
 
   return (
     <tr key={item.price.id} className="transition-colors">
@@ -107,7 +106,7 @@ export const ProductMappingTableRow = ({
           {item.product.name}
         </div>
         <div className="text-body-xs text-text-secondary leading-5">
-          {renderUSD(item.price.amount / 100)}
+          {renderCurrency(item.price.amount / 100)}
         </div>
       </td>
 
@@ -136,7 +135,7 @@ export const ProductMappingTableRow = ({
                   {xeroItem.name}
                 </div>
                 <div className="text-body-xs text-text-secondary leading-5">
-                  {renderUSD(xeroItem.amount)}
+                  {renderCurrency(xeroItem.amount)}
                 </div>
               </div>
             ) : (
@@ -195,7 +194,7 @@ export const ProductMappingTableRow = ({
                         {item.name}
                       </span>
                       <span className="ps-2 text-body-micro text-gray-500 leading-body-micro">
-                        {renderUSD(item.amount)}
+                        {renderCurrency(item.amount)}
                       </span>
                     </button>
                   ))

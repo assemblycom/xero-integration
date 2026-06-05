@@ -5,13 +5,13 @@ import { useTimeAgo } from '@auth/hooks/useTimeAgo'
 import { updateSettingsAction } from '@settings/actions/settings'
 import { useSettingsContext } from '@settings/hooks/useSettings'
 import { Callout } from 'copilot-design-system'
-import { CountryCode } from 'xero-node'
+import { isSupportedCountry } from '@/lib/xero/region'
 
-const NonUsCallout = () => (
+const UnsupportedRegionCallout = () => (
   <div className="mb-4">
     <Callout
-      title="Support Limited to U.S. Xero Accounts"
-      description="At this time, the integration only supports US-based Xero accounts. To use the integration, please disconnect your current account and reconnect using a US Xero account."
+      title="Xero region not supported"
+      description="The integration currently supports US and Australian Xero accounts. To use it, please disconnect and reconnect using a Xero account based in the United States or Australia."
       variant="error"
     />
   </div>
@@ -29,7 +29,9 @@ export const CalloutSection = () => {
 
   const timeAgo = useTimeAgo(lastSyncedAt)
 
-  const isNonUSAccount = connectionStatus && countryCode && countryCode !== CountryCode.US
+  // Only flag a region as unsupported once it is known; an unresolved countryCode
+  // (e.g. a transient fetch failure) must not surface the error callout.
+  const isUnsupportedRegion = connectionStatus && !!countryCode && !isSupportedCountry(countryCode)
 
   if (needsReconnection) {
     return (
@@ -69,7 +71,7 @@ export const CalloutSection = () => {
   if (!isSyncEnabled)
     return (
       <>
-        {isNonUSAccount && <NonUsCallout />}
+        {isUnsupportedRegion && <UnsupportedRegionCallout />}
         <Callout
           title={'Confirm your mapping before getting started.'}
           description={
@@ -81,7 +83,8 @@ export const CalloutSection = () => {
             label: 'Enable app',
             prefixIcon: 'Check',
             disabled:
-              !!isNonUSAccount || !(initialInvoiceSettingsMapping && initialProductSettingsMapping),
+              !!isUnsupportedRegion ||
+              !(initialInvoiceSettingsMapping && initialProductSettingsMapping),
             onClick: async (_e: unknown) => {
               const newSettings = await updateSettingsAction(user.token, { isSyncEnabled: true })
               updateSettings({
@@ -97,7 +100,7 @@ export const CalloutSection = () => {
   if (lastSyncedAt)
     return (
       <>
-        {isNonUSAccount && <NonUsCallout />}
+        {isUnsupportedRegion && <UnsupportedRegionCallout />}
         <Callout
           title={'Xero sync is live'}
           description={`Last synced ${timeAgo}`}
@@ -106,5 +109,5 @@ export const CalloutSection = () => {
       </>
     )
 
-  if (isNonUSAccount) return <NonUsCallout />
+  if (isUnsupportedRegion) return <UnsupportedRegionCallout />
 }
