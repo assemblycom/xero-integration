@@ -43,10 +43,12 @@ export type SettingsFields = Omit<
   'id' | 'portalId' | 'tenantId' | 'createdAt' | 'updatedAt'
 >
 
+// countryCode is set server-side only, so keep it out of client updates.
 export const SettingsUpdateSchema = createUpdateSchema(settings).omit({
   id: true,
   portalId: true,
   tenantId: true,
+  countryCode: true,
   createdAt: true,
   updatedAt: true,
 })
