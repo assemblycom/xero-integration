@@ -51,6 +51,13 @@ class SyncedInvoicesService extends AuthenticatedXeroService {
 
     const regionService = new RegionService(this.user, this.connection)
     const regionConfig = await regionService.getRegionConfig()
+    if (!regionConfig) {
+      // The webhook gate already skips unsupported regions, so null here means a bug.
+      throw new APIError(
+        'Cannot sync invoice: Xero region is not supported',
+        status.INTERNAL_SERVER_ERROR,
+      )
+    }
 
     const taxRatePromise = this.getTaxRate(data, regionConfig)
     const contactPromise = this.getContact(data)
@@ -241,6 +248,13 @@ class SyncedInvoicesService extends AuthenticatedXeroService {
     // Resolved after the idempotency check (so replays skip the work)
     const regionService = new RegionService(this.user, this.connection)
     const regionConfig = await regionService.getRegionConfig()
+    if (!regionConfig) {
+      // The webhook gate already skips unsupported regions, so null here means a bug.
+      throw new APIError(
+        'Cannot sync paid invoice: Xero region is not supported',
+        status.INTERNAL_SERVER_ERROR,
+      )
+    }
 
     try {
       const syncedAccountsService = new SyncedAccountsService(this.user, this.connection)

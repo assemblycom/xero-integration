@@ -34,12 +34,17 @@ class WebhookService extends AuthenticatedXeroService {
     )
     logger.info('WebhookService#handleEvent :: Received webhook event data', data)
 
-    // Gate sync to supported Xero regions (US, AU). getRegionConfig throws APIError with
-    // status.OK for unsupported regions, which the catch below treats as "ignore this event".
-    // The inner sync services resolve the region again; that re-resolve is a cheap DB read
-    // once this call has persisted the country code, so we don't thread the value through.
+    // Only sync supported regions (US, AU). Null config = unsupported, so skip and ack
+    // (return → 200) to stop Copilot retrying.
     const regionService = new RegionService(this.user, this.connection)
-    await regionService.getRegionConfig()
+    const regionConfig = await regionService.getRegionConfig()
+    if (!regionConfig) {
+      logger.info(
+        'WebhookService#handleEvent :: Unsupported Xero region, ignoring event',
+        data.eventType,
+      )
+      return
+    }
 
     const eventHandlerMap: Record<WebhookEvent['eventType'], (data: unknown) => Promise<unknown>> =
       {
