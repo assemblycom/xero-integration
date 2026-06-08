@@ -40,6 +40,15 @@ class SyncedInvoicesService extends AuthenticatedXeroService {
   }> {
     logger.info('SyncedInvoicesService#syncInvoiceToXero :: Syncing invoice to xero:', data.id)
 
+    // Check idempotency before the setup below so replays skip the Xero API calls.
+    let syncedInvoiceRecord = await this.getOrCreateInvoiceRecord(data.id)
+    if (syncedInvoiceRecord.status === 'success') {
+      logger.info(
+        `XeroInvoiceSyncService#syncInvoiceToXero :: Ignoring ${syncedInvoiceRecord.status} sync`,
+      )
+      return syncedInvoiceRecord
+    }
+
     const regionService = new RegionService(this.user, this.connection)
     const regionConfig = await regionService.getRegionConfig()
 
@@ -82,15 +91,6 @@ class SyncedInvoicesService extends AuthenticatedXeroService {
       status: Invoice.StatusEnum.AUTHORISED,
       date: datetimeToDate(data.sentDate || dayjs().format('YYYY-MM-DDTHH:mm:ss.SSSZ')),
     } satisfies InvoiceCreatePayload)
-
-    // Add a "pending" invoice to db
-    let syncedInvoiceRecord = await this.getOrCreateInvoiceRecord(data.id)
-    if (syncedInvoiceRecord.status === 'success') {
-      logger.info(
-        `XeroInvoiceSyncService#syncInvoiceToXero :: Ignoring ${syncedInvoiceRecord.status} sync`,
-      )
-      return syncedInvoiceRecord
-    }
 
     let syncedInvoice: Invoice | undefined
     // Create and save invoice status
