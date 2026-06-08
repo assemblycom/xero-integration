@@ -21,13 +21,22 @@ const EXPENSE_ACCOUNT_TYPES: AccountType[] = [
 ]
 
 class SyncedAccountsService extends AuthenticatedXeroService {
+  private accountsPromise?: Promise<Account[]>
+
+  // Fetch the tenant's accounts once per instance. Each getOrCreate* method targets a
+  // distinct code, so they can share one list (and parallel callers share one request).
+  private getAccounts(): Promise<Account[]> {
+    this.accountsPromise ??= this.xero.getAccounts(this.connection.tenantId)
+    return this.accountsPromise
+  }
+
   async getOrCreateCopilotSalesAccount(regionConfig: RegionConfig): Promise<Account> {
     logger.info(
       'SyncedAccountsService#getOrCreateCopilotSalesAccount :: Getting copilot sales account',
     )
 
     const { sales: code } = regionConfig.accountCodes
-    const accounts = await this.xero.getAccounts(this.connection.tenantId)
+    const accounts = await this.getAccounts()
     const existing = accounts.find((acc) => acc.code === code)
 
     // CASE I: The code is already taken by an account whose type can't back a sales invoice
@@ -82,7 +91,7 @@ class SyncedAccountsService extends AuthenticatedXeroService {
     )
 
     const { merchantFees: code } = regionConfig.accountCodes
-    const accounts = await this.xero.getAccounts(this.connection.tenantId)
+    const accounts = await this.getAccounts()
     const existing = accounts.find((acc) => acc.code === code)
 
     // CASE I: The code is already taken by an account whose type can't back an expense
@@ -137,7 +146,7 @@ class SyncedAccountsService extends AuthenticatedXeroService {
     )
 
     const { bank: code } = regionConfig.accountCodes
-    const accounts = await this.xero.getAccounts(this.connection.tenantId)
+    const accounts = await this.getAccounts()
     const existing = accounts.find((acc) => acc.code === code)
 
     // The code is already taken by a non-bank account — fail clearly rather than emit an
