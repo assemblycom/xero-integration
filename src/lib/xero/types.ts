@@ -23,7 +23,7 @@ export const LineItemSchema = z
     lineItemID: z.uuid().optional(),
     itemCode: z.string().optional(),
     // Unique code to identify Xero item
-    accountCode: z.string().min(1),
+    accountCode: z.string().min(1, 'Account code is required'),
     accountId: z.string().optional(),
   })
   .superRefine((data, ctx) => {
