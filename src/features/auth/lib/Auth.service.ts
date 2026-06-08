@@ -57,22 +57,24 @@ class AuthService extends BaseService {
     connection?: XeroConnection
   }) {
     logger.info(
-      'AuthService#handleRefreshFailure :: Handling refresh failure for safe mode',
+      'AuthService#handleRefreshFailure :: Handling refresh failure with safe',
       safe,
+      'notify',
+      notify,
       'and connection',
       connection?.id,
     )
 
-    if (!safe) {
-      if (notify) await sendAuthorizationFailedNotification(this.user, connection)
-      throw new XeroConnectionFailedError()
-    }
+    // Notify once per failure (whoever wins the active->inactive flip), even in safe
+    // mode — `safe` only decides whether to throw.
+    if (notify) await sendAuthorizationFailedNotification(this.user, connection)
+    if (!safe) throw new XeroConnectionFailedError()
   }
 
   /**
    * Authorize Xero for a Copilot workspace using a token payload
    * Ref: https://developer.xero.com/documentation/guides/oauth2/auth-flow/
-   * @param safe - When `true`, swallow auth errors instead of throwing/notifying.
+   * @param safe - When `true`, return the inactive connection instead of throwing.
    */
   // Overloads
   authorizeXeroForCopilotWorkspace(): Promise<XeroConnectionWithTokenSet>
@@ -104,7 +106,7 @@ class AuthService extends BaseService {
     if (!isAccessTokenValid) {
       // --- Handle inactive connection
       // Only the first failure flips active->inactive, so we notify once even when
-      // many webhooks fail at the same time. (Re-flipped to active on refresh below.)
+      // many events fail at the same time. (Re-flipped to active on refresh below.)
       const didDeactivate = await this.connectionsService.deactivateConnectionIfActive()
       connection = { ...connection, status: false }
 
