@@ -14,7 +14,7 @@ import { SyncedContactUserType, syncedContacts } from '@/db/schema/syncedContact
 import { SyncEntityType, SyncEventType, SyncStatus } from '@/db/schema/syncLogs.schema'
 import APIError from '@/errors/APIError'
 import type { ClientResponse, CompanyResponse } from '@/lib/copilot/types'
-import { buildClientName } from '@/lib/copilot/utils'
+import { buildClientName, getEarliestActiveClient } from '@/lib/copilot/utils'
 import logger from '@/lib/logger'
 import AuthenticatedXeroService from '@/lib/xero/AuthenticatedXero.service'
 import type { ContactCreatePayload, ValidContact } from '@/lib/xero/types'
@@ -27,22 +27,34 @@ class SyncedContactsService extends AuthenticatedXeroService {
     const settingsService = new SettingsService(this.user, this.connection)
     const { useCompanyName } = await settingsService.getOrCreateSettings()
 
-    const client = clientId ? await this.copilot.getClient(clientId) : undefined
+    let client = clientId ? await this.copilot.getClient(clientId) : undefined
+    let billedClientId = clientId
 
     let company: CompanyResponse | undefined
-    // If useCompanyName is true or clientId is undefined, then the invoice is billed to a company
-    // `company` variable will be populated then.
-    if (useCompanyName || !clientId) {
+    let useNonPlaceholderCompanyName = false
+
+    if (!useCompanyName && !clientId) {
+      // Billed to company but useCompanyName is off: bill the earliest active client of the company.
+      const clients = await this.copilot.getCompanyClients(companyId)
+      client = getEarliestActiveClient(clients)
+
+      if (!client)
+        throw new APIError('No active client found for company', status.BAD_REQUEST, {
+          error: 'No active client found for company',
+        })
+      billedClientId = client.id
+    } else if (!clientId) {
+      // Billed to company with useCompanyName on: use the company name (unless it's a placeholder).
       company = await this.copilot.getCompany(companyId)
+
+      if (company?.isPlaceholder)
+        throw new APIError(
+          'Cannot use company name of place holder company for invoice',
+          status.BAD_REQUEST,
+        )
+      useNonPlaceholderCompanyName = true
     }
-
-    const useNonPlaceholderCompanyName = useCompanyName && !company?.isPlaceholder
-
-    if (!useNonPlaceholderCompanyName && !clientId)
-      throw new APIError(
-        'Cannot use company name of place holder company for invoice',
-        status.BAD_REQUEST,
-      )
+    // Otherwise (clientId present), the invoice is billed directly to that client.
 
     const query = this.db
       .select({ contactID: syncedContacts.contactId })
@@ -53,11 +65,11 @@ class SyncedContactsService extends AuthenticatedXeroService {
           eq(syncedContacts.tenantId, this.connection.tenantId),
           eq(
             syncedContacts.clientOrCompanyId,
-            useNonPlaceholderCompanyName || !clientId ? companyId : clientId,
+            useNonPlaceholderCompanyName || !billedClientId ? companyId : billedClientId,
           ),
           eq(
             syncedContacts.userType,
-            useNonPlaceholderCompanyName || !clientId
+            useNonPlaceholderCompanyName || !billedClientId
               ? SyncedContactUserType.COMPANY
               : SyncedContactUserType.CLIENT,
           ),
@@ -82,14 +94,14 @@ class SyncedContactsService extends AuthenticatedXeroService {
             eq(syncedContacts.tenantId, this.connection.tenantId),
             eq(
               syncedContacts.clientOrCompanyId,
-              useNonPlaceholderCompanyName || !clientId ? companyId : clientId,
+              useNonPlaceholderCompanyName || !billedClientId ? companyId : billedClientId,
             ),
           ),
         )
     }
 
     logger.info(
-      `SyncedContactsService#createContact :: Couldn't find existing client... creating a new one for ${clientId}`,
+      `SyncedContactsService#createContact :: Couldn't find existing client... creating a new one for ${billedClientId}`,
     )
     contact = await this.createContact(client, company)
 
