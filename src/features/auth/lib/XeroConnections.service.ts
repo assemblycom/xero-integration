@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import type { TokenSet } from 'xero-node'
 import { z } from 'zod'
 import {
@@ -56,6 +56,21 @@ class XeroConnectionsService extends BaseService {
       .where(eq(xeroConnections.portalId, this.user.portalId))
       .returning()
     return connections[0]
+  }
+
+  /**
+   * Mark the connection inactive only if it's currently active.
+   * Returns true if this call did the flip — lets callers notify just once.
+   */
+  async deactivateConnectionIfActive(): Promise<boolean> {
+    const rows = await this.db
+      .update(xeroConnections)
+      .set({ status: false })
+      .where(
+        and(eq(xeroConnections.portalId, this.user.portalId), eq(xeroConnections.status, true)),
+      )
+      .returning()
+    return rows.length > 0
   }
 
   async handleXeroConnectionCallback(

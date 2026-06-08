@@ -33,10 +33,16 @@ class RetryFailedSyncsService {
         const user = await User.authenticate(token)
 
         const authService = new AuthService(user)
-        const connection = await authService.authorizeXeroForCopilotWorkspace()
+        // Safe mode: retries shouldn't notify. Skip below if the connection is dead.
+        const connection = await authService.authorizeXeroForCopilotWorkspace(true)
+        const { tokenSet, tenantId } = connection
+        if (!connection.status || !tokenSet || !tenantId) {
+          logger.info('Skipping failed sync; Xero connection is inactive', failedSync.id)
+          continue
+        }
         logger.info('Found connection', connection.id)
 
-        const webhookService = new WebhookService(user, connection)
+        const webhookService = new WebhookService(user, { ...connection, tokenSet, tenantId })
         await webhookService.handleEvent({
           eventType: failedSync.type,
           // biome-ignore lint/suspicious/noExplicitAny: payload can literally be anything
