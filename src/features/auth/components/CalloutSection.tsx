@@ -68,46 +68,46 @@ export const CalloutSection = () => {
       />
     )
 
-  if (!isSyncEnabled)
-    return (
-      <>
-        {isUnsupportedRegion && <UnsupportedRegionCallout />}
-        <Callout
-          title={'Confirm your mapping before getting started.'}
-          description={
-            'Set your service mappings and review configuration settings to best set up your sync.'
-          }
-          variant={'warning'}
-          actionProps={{
-            variant: 'primary',
-            label: 'Enable app',
-            prefixIcon: 'Check',
-            disabled:
-              !!isUnsupportedRegion ||
-              !(initialInvoiceSettingsMapping && initialProductSettingsMapping),
-            onClick: async (_e: unknown) => {
-              const newSettings = await updateSettingsAction(user.token, { isSyncEnabled: true })
-              updateSettings({
-                ...newSettings,
-                initialSettings: { ...initialSettings, ...newSettings },
-              })
-            },
-          }}
-        />
-      </>
+  let mainCallout = null
+  if (!isSyncEnabled) {
+    mainCallout = (
+      <Callout
+        title={'Confirm your mapping before getting started.'}
+        description={
+          'Set your service mappings and review configuration settings to best set up your sync.'
+        }
+        variant={'warning'}
+        actionProps={{
+          variant: 'primary',
+          label: 'Enable app',
+          prefixIcon: 'Check',
+          disabled:
+            !!isUnsupportedRegion ||
+            !(initialInvoiceSettingsMapping && initialProductSettingsMapping),
+          onClick: async (_e: unknown) => {
+            const newSettings = await updateSettingsAction(user.token, { isSyncEnabled: true })
+            updateSettings({
+              ...newSettings,
+              initialSettings: { ...initialSettings, ...newSettings },
+            })
+          },
+        }}
+      />
     )
-
-  if (lastSyncedAt)
-    return (
-      <>
-        {isUnsupportedRegion && <UnsupportedRegionCallout />}
-        <Callout
-          title={'Xero sync is live'}
-          description={`Last synced ${timeAgo}`}
-          variant={'success'}
-        />
-      </>
+  } else if (lastSyncedAt) {
+    mainCallout = (
+      <Callout
+        title={'Xero sync is live'}
+        description={`Last synced ${timeAgo}`}
+        variant={'success'}
+      />
     )
+  }
 
-  if (isUnsupportedRegion) return <UnsupportedRegionCallout />
+  return (
+    <>
+      {isUnsupportedRegion && <UnsupportedRegionCallout />}
+      {mainCallout}
+    </>
+  )
 }
