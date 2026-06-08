@@ -61,6 +61,13 @@ class SyncedPaymentsService extends AuthenticatedXeroService {
   async createPlatformExpensePayment(data: PaymentSucceededEvent): Promise<BankTransaction> {
     const regionService = new RegionService(this.user, this.connection)
     const regionConfig = await regionService.getRegionConfig()
+    if (!regionConfig) {
+      // The webhook gate already skips unsupported regions, so null here means a bug.
+      throw new APIError(
+        'Cannot create platform expense payment: Xero region is not supported',
+        status.INTERNAL_SERVER_ERROR,
+      )
+    }
 
     try {
       logger.info(

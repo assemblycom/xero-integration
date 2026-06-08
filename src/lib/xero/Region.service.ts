@@ -1,8 +1,6 @@
 import 'server-only'
 
 import SettingsService from '@settings/lib/Settings.service'
-import status from 'http-status'
-import APIError from '@/errors/APIError'
 import logger from '@/lib/logger'
 import AuthenticatedXeroService from '@/lib/xero/AuthenticatedXero.service'
 import { isSupportedCountry, type RegionConfig, regionConfigFor } from '@/lib/xero/region'
@@ -24,10 +22,14 @@ class RegionService extends AuthenticatedXeroService {
     return String(countryCode)
   }
 
-  async getRegionConfig(): Promise<RegionConfig> {
+  /** Returns the org's region config, or null if its country isn't supported. */
+  async getRegionConfig(): Promise<RegionConfig | null> {
     const countryCode = await this.resolveCountryCode()
     if (!isSupportedCountry(countryCode)) {
-      throw new APIError(`Xero region ${countryCode ?? 'unknown'} is not supported`, status.OK)
+      logger.info(
+        `RegionService#getRegionConfig :: Xero region ${countryCode ?? 'unknown'} is not supported`,
+      )
+      return null
     }
     return regionConfigFor(countryCode)
   }
