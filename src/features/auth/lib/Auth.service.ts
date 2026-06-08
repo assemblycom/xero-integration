@@ -47,7 +47,15 @@ class AuthService extends BaseService {
     })
   }
 
-  private async handleRefreshFailure(safe: boolean, connection?: XeroConnection) {
+  private async handleRefreshFailure({
+    safe,
+    notify,
+    connection,
+  }: {
+    safe: boolean
+    notify: boolean
+    connection?: XeroConnection
+  }) {
     logger.info(
       'AuthService#handleRefreshFailure :: Handling refresh failure for safe mode',
       safe,
@@ -56,7 +64,7 @@ class AuthService extends BaseService {
     )
 
     if (!safe) {
-      await sendAuthorizationFailedNotification(this.user, connection)
+      if (notify) await sendAuthorizationFailedNotification(this.user, connection)
       throw new XeroConnectionFailedError()
     }
   }
@@ -64,7 +72,7 @@ class AuthService extends BaseService {
   /**
    * Authorize Xero for a Copilot workspace using a token payload
    * Ref: https://developer.xero.com/documentation/guides/oauth2/auth-flow/
-   * @param opts - `safe` flag is for safe handling of errors. `true` does not trigger an error, `false` does.
+   * @param safe - When `true`, swallow auth errors instead of throwing/notifying.
    */
   // Overloads
   authorizeXeroForCopilotWorkspace(): Promise<XeroConnectionWithTokenSet>
@@ -95,15 +103,17 @@ class AuthService extends BaseService {
     // --- Handle active connection
     if (!isAccessTokenValid) {
       // --- Handle inactive connection
-      // Update connection as inactive first
-      connection = await this.connectionsService.updateConnectionForWorkspace({ status: false })
+      // Only the first failure flips active->inactive, so we notify once even when
+      // many webhooks fail at the same time. (Re-flipped to active on refresh below.)
+      const didDeactivate = await this.connectionsService.deactivateConnectionIfActive()
+      connection = { ...connection, status: false }
 
       // If Xero connection was not found or unrefreshable. Send a mail prompting IUs to re-authorize
       if (!connection.tokenSet || !connection.tokenSet.refresh_token) {
         logger.info(
           'AuthService#authorizeXeroForCopilotWorkspace :: Unable to refresh Xero access token, no refresh token available',
         )
-        await this.handleRefreshFailure(safe, connection)
+        await this.handleRefreshFailure({ safe, notify: didDeactivate, connection })
       } else {
         logger.info('AuthService#authorizeXeroForCopilotWorkspace :: Refreshing Xero access token')
         // Attempt to refresh access token via refresh token
@@ -118,7 +128,7 @@ class AuthService extends BaseService {
         } catch (e: unknown) {
           // If unable to refresh, send notification email
           logger.error('Error refreshing Xero access token:', e)
-          await this.handleRefreshFailure(safe, connection)
+          await this.handleRefreshFailure({ safe, notify: didDeactivate, connection })
         }
       }
     }
