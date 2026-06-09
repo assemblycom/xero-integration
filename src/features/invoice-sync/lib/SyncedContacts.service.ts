@@ -33,6 +33,8 @@ class SyncedContactsService extends AuthenticatedXeroService {
     let company: CompanyResponse | undefined
     let useNonPlaceholderCompanyName = false
 
+    // Case where an invoice is billed to a company.
+    // If an invoice is billed to a client, this whole if else block is skipped.
     if (!useCompanyName && !clientId) {
       // Billed to company but useCompanyName is off: bill the earliest active client of the company.
       const clients = await this.copilot.getCompanyClients(companyId)
