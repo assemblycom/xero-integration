@@ -38,10 +38,7 @@ class SyncedContactsService extends AuthenticatedXeroService {
       const clients = await this.copilot.getCompanyClients(companyId)
       client = getEarliestActiveClient(clients)
 
-      if (!client)
-        throw new APIError('No active client found for company', status.BAD_REQUEST, {
-          error: 'No active client found for company',
-        })
+      if (!client) throw new APIError('No active client found for company', status.BAD_REQUEST)
       billedClientId = client.id
     } else if (!clientId) {
       // Billed to company with useCompanyName on: use the company name (unless it's a placeholder).
