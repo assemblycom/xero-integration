@@ -1,9 +1,15 @@
+BEGIN;
 
--- Revoke all the write permissions from anon and grant select only access on realtime enabled table
+-- Revoke writes, grant select-only to anon
 REVOKE INSERT, UPDATE, DELETE ON xero_connection_status FROM anon;
 GRANT SELECT ON xero_connection_status TO anon;
 
--- Enable RLS in all table at onces using loop
+-- Create the policy before enabling RLS to avoid a default-deny gap
+CREATE POLICY "anon can read connection status"
+  ON xero_connection_status FOR SELECT
+  TO anon USING (true);
+
+-- Enable RLS on all public tables
 do $$
 declare
   r record;
@@ -17,12 +23,8 @@ begin
   end loop;
 end $$;
 
--- Create RLS policy for anon to read the table
-CREATE POLICY "anon can read connection status"
-  ON xero_connection_status FOR SELECT
-  TO anon USING (true);
-
-
--- Realtime: subscribe the new table, drop the old one
+-- Point realtime at the new table
 ALTER PUBLICATION supabase_realtime ADD TABLE xero_connection_status;
 ALTER PUBLICATION supabase_realtime DROP TABLE xero_connections;
+
+COMMIT;
