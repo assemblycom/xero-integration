@@ -78,6 +78,13 @@
       "when": 1780580743823,
       "tag": "20260604134543_add_country_code_to_settings",
       "breakpoints": false
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1781085433576,
+      "tag": "20260610095713_add_xero_connection_status",
+      "breakpoints": false
     }
   ]
 }
