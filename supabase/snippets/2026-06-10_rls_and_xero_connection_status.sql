@@ -1,7 +1,7 @@
 BEGIN;
 
 -- Revoke writes, grant select-only to anon
-REVOKE INSERT, UPDATE, DELETE ON xero_connection_status FROM anon;
+REVOKE INSERT, UPDATE, DELETE, SELECT ON ALL TABLES IN SCHEMA public FROM anon;
 GRANT SELECT ON xero_connection_status TO anon;
 
 -- Create the policy before enabling RLS to avoid a default-deny gap
