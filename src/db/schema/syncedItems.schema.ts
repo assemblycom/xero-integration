@@ -17,20 +17,17 @@ export const syncedItems = pgTable(
     // Product ID for Copilot
     productId: varchar({ length: 64 }).notNull(),
 
-    // Price ID for corresponding Copilot product
-    priceId: varchar({ length: 64 }).notNull(),
-
     // Item ID for synced Item in Xero
     itemId: uuid().notNull(),
 
     ...timestamps,
   },
   (t) => [
-    // One product x price combination for a portal should have ONLY ONE synced item in Xero
-    uniqueIndex('uq_synced_items_portal_id_product_id_price_id').on(
+    // One product for a portal/tenant should have ONLY ONE synced item in Xero
+    uniqueIndex('uq_synced_items_portal_id_tenant_id_product_id').on(
       t.portalId,
+      t.tenantId,
       t.productId,
-      t.priceId,
     ),
   ],
 )

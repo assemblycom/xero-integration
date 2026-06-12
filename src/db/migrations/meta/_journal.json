@@ -85,6 +85,13 @@
       "when": 1781085433576,
       "tag": "20260610095713_add_xero_connection_status",
       "breakpoints": false
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1781265384050,
+      "tag": "20260612115624_drop_price_id_from_synced_items",
+      "breakpoints": false
     }
   ]
 }
