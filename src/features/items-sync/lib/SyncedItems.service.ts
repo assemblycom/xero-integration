@@ -28,26 +28,45 @@ class SyncedItemsService extends AuthenticatedXeroService {
     if (!itemsToCreate.length) return []
 
     const newlyCreatedItems = await this.xero.createItems(this.connection.tenantId, itemsToCreate)
-    await this.db
+
+    const insertPayloads = newlyCreatedItems.map((item) => ({
+      portalId: this.user.portalId,
+      productId: productIdForCode[item.code],
+      itemId: z.uuid().parse(item.itemID),
+      tenantId: this.connection.tenantId,
+    }))
+    logger.info('SyncedItemsService#createItems :: Inserting synced item records:', insertPayloads)
+
+    // Ignore on conflict (product already mapped); returning() shows which rows won
+    const inserted = await this.db
       .insert(syncedItems)
-      .values(
-        newlyCreatedItems.map((item) => {
-          const insertPayload = {
-            portalId: this.user.portalId,
-            productId: productIdForCode[item.code],
-            itemId: z.uuid().parse(item.itemID),
-            tenantId: this.connection.tenantId,
-          }
-          logger.info(
-            'SyncedItemsService#createItems :: Inserting synced item record:',
-            insertPayload,
-          )
-          return insertPayload
-        }),
-      )
-      // One item per product: ignore if this product was already mapped (race safety)
+      .values(insertPayloads)
       .onConflictDoNothing()
-    return newlyCreatedItems
+      .returning({ itemId: syncedItems.itemId })
+    const insertedItemIds = new Set(inserted.map((row) => row.itemId))
+
+    // Delete Xero items whose mapping lost the conflict — orphans we just created
+    const persistedItems: Item[] = []
+    for (const item of newlyCreatedItems) {
+      if (insertedItemIds.has(z.uuid().parse(item.itemID))) {
+        persistedItems.push(item)
+        continue
+      }
+      logger.warn(
+        'SyncedItemsService#createItems :: Product already mapped, deleting orphaned Xero item',
+        item.itemID,
+      )
+      try {
+        await this.xero.deleteItem(this.connection.tenantId, z.uuid().parse(item.itemID))
+      } catch (error) {
+        logger.error(
+          'SyncedItemsService#createItems :: Failed to delete orphaned Xero item',
+          item.itemID,
+          error,
+        )
+      }
+    }
+    return persistedItems
   }
 
   /**
@@ -180,6 +199,8 @@ class SyncedItemsService extends AuthenticatedXeroService {
 
       try {
         const items = await this.createItems([payload], { [payload.code]: product.id })
+        // Lost the create race; orphan already cleaned up
+        if (!items.length) continue
         createdItems.push(items[0])
 
         await syncLogsService.createSyncLog({
