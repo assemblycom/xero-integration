@@ -40,8 +40,7 @@ class RetryFailedSyncsService {
 
         const webhookService = new WebhookService(user, connection)
 
-        // Legacy price.created failed syncs are resolved as product.created (one Xero item per
-        // product). Their stored payload is a price event, so resolve the product from productId.
+        // Resolve legacy price.created records as product.created via the payload's productId
         if (failedSync.type === ValidWebhookEvent.PriceCreated) {
           const { productId } = (failedSync.payload ?? {}) as { productId?: string }
           if (!productId) {
@@ -53,20 +52,24 @@ class RetryFailedSyncsService {
             continue
           }
 
-          // Fetch first: a transient failure here keeps the row for a later retry
           const products = await new CopilotAPI(token).getProductsMapById([productId])
           const product = products[productId]
-
-          // Drop the legacy row before dispatching: if handleEvent fails it records its own
-          // product.created retry, so the price.created row must not linger and reprocess.
-          await db.delete(failedSyncs).where(eq(failedSyncs.id, failedSync.id))
-
-          if (product) {
-            await webhookService.handleEvent({
-              eventType: ValidWebhookEvent.ProductCreated,
-              data: { id: product.id, name: product.name, description: product.description },
-            })
+          if (!product) {
+            logger.warn(
+              'Legacy price.created failed sync references a product that no longer exists, dropping',
+              failedSync.id,
+              productId,
+            )
+            await db.delete(failedSyncs).where(eq(failedSyncs.id, failedSync.id))
+            continue
           }
+
+          // Delete only after a successful dispatch, like every other event — no row loss on failure
+          await webhookService.handleEvent({
+            eventType: ValidWebhookEvent.ProductCreated,
+            data: { id: product.id, name: product.name, description: product.description },
+          })
+          await db.delete(failedSyncs).where(eq(failedSyncs.id, failedSync.id))
           continue
         }
 
