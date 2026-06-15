@@ -42,19 +42,18 @@ export const InvoiceModifiedEventSchema = z.object({
   id: z.string(),
 })
 
-export const ProductUpdatedEventSchema = z.object({
+// product.created and product.updated carry the same shape
+export const ProductEventSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string(),
 })
+
+export const ProductUpdatedEventSchema = ProductEventSchema
 export type ProductUpdatedEvent = z.infer<typeof ProductUpdatedEventSchema>
 
-export const PriceCreatedEventSchema = z.object({
-  id: z.string(),
-  productId: z.string(),
-  amount: z.number(),
-})
-export type PriceCreatedEvent = z.infer<typeof PriceCreatedEventSchema>
+export const ProductCreatedEventSchema = ProductEventSchema
+export type ProductCreatedEvent = z.infer<typeof ProductCreatedEventSchema>
 
 export enum PaymentStatus {
   PENDING = 'pending',
@@ -84,6 +83,8 @@ export enum ValidWebhookEvent {
   InvoiceVoided = 'invoice.voided',
   InvoiceDeleted = 'invoice.deleted',
   ProductUpdated = 'product.updated',
+  ProductCreated = 'product.created',
+  // Legacy: retained for historical failed_syncs records; no longer handled as a live webhook
   PriceCreated = 'price.created',
   PaymentSucceeded = 'payment.succeeded',
 }
@@ -124,11 +125,11 @@ export const ProductUpdatedWebhookSchema = z.object({
 })
 export type ProductUpdatedWebhook = z.infer<typeof ProductUpdatedWebhookSchema>
 
-export const PriceCreatedWebhookSchema = z.object({
-  eventType: z.literal(ValidWebhookEvent.PriceCreated),
-  data: PriceCreatedEventSchema,
+export const ProductCreatedWebhookSchema = z.object({
+  eventType: z.literal(ValidWebhookEvent.ProductCreated),
+  data: ProductCreatedEventSchema,
 })
-export type PriceCreatedWebhook = z.infer<typeof PriceCreatedWebhookSchema>
+export type ProductCreatedWebhook = z.infer<typeof ProductCreatedWebhookSchema>
 
 export const PaymentSucceededWebhookSchema = z.object({
   eventType: z.literal(ValidWebhookEvent.PaymentSucceeded),
@@ -142,7 +143,7 @@ export const WebhookEventSchema = z.discriminatedUnion('eventType', [
   InvoiceVoidedWebhookSchema,
   InvoiceDeletedWebhookSchema,
   ProductUpdatedWebhookSchema,
-  PriceCreatedWebhookSchema,
+  ProductCreatedWebhookSchema,
   PaymentSucceededWebhookSchema,
 ])
 export type WebhookEvent = z.infer<typeof WebhookEventSchema>
