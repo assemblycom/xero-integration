@@ -7,7 +7,7 @@ import {
   InvoiceCreatedEventSchema,
   InvoiceModifiedEventSchema,
   PaymentSucceededEventSchema,
-  PriceCreatedEventSchema,
+  ProductCreatedEventSchema,
   ProductUpdatedEventSchema,
   ValidWebhookEvent,
   type WebhookEvent,
@@ -54,7 +54,7 @@ class WebhookService extends AuthenticatedXeroService {
         [ValidWebhookEvent.InvoiceVoided]: this.handleInvoiceVoided,
         [ValidWebhookEvent.InvoiceDeleted]: this.handleInvoiceDeleted,
         [ValidWebhookEvent.ProductUpdated]: this.handleProductUpdated,
-        [ValidWebhookEvent.PriceCreated]: this.handlePriceCreated,
+        [ValidWebhookEvent.ProductCreated]: this.handleProductCreated,
         [ValidWebhookEvent.PaymentSucceeded]: this.handlePaymentSucceeded,
       }
 
@@ -151,7 +151,7 @@ class WebhookService extends AuthenticatedXeroService {
     const isSyncAutomaticallyEnabled = await this.checkAutomaticProductSyncEnabled()
     if (!isSyncAutomaticallyEnabled) {
       throw new APIError(
-        'Sync Products Automatically is disabled, cannot create synced item for new price',
+        'Sync Products Automatically is disabled, cannot update synced item for product',
         status.OK,
       )
     }
@@ -170,21 +170,28 @@ class WebhookService extends AuthenticatedXeroService {
     return { items }
   }
 
-  private handlePriceCreated = async (eventData: unknown) => {
-    logger.info('WebhookService#handleInvoiceCreated :: Handling price created')
+  private handleProductCreated = async (eventData: unknown) => {
+    logger.info('WebhookService#handleProductCreated :: Handling product created')
 
     const isSyncAutomaticallyEnabled = await this.checkAutomaticProductSyncEnabled()
     if (!isSyncAutomaticallyEnabled) {
       throw new APIError(
-        'Sync Products Automatically is disabled, cannot create synced item for new price',
+        'Sync Products Automatically is disabled, cannot create synced item for new product',
         status.OK,
       )
     }
 
-    const data = PriceCreatedEventSchema.parse(eventData)
+    const data = ProductCreatedEventSchema.parse(eventData)
     const syncedItemsService = new SyncedItemsService(this.user, this.connection)
-    const [newPrice] = await syncedItemsService.createSyncedItemsForPrices([data])
-    return newPrice
+    const [newItem] = await syncedItemsService.createSyncedItemsForProducts([data])
+    if (!newItem) {
+      logger.info(
+        'WebhookService#handleProductCreated :: Product already mapped, nothing to do',
+        data.id,
+      )
+      return
+    }
+    return newItem
   }
 
   private handlePaymentSucceeded = async (eventData: unknown) => {
