@@ -43,7 +43,7 @@ class ProductMappingsService extends AuthenticatedXeroService {
     // One row per product now that synced items map at the product level
     const mappings = Object.values(copilotProducts).map((product) => {
       const mapping = mappingRecords[product.id]
-      const item = mapping && xeroItems[mapping.itemId || '']
+      const item = mapping?.itemId && xeroItems[mapping.itemId]
       return {
         product,
         item: item
