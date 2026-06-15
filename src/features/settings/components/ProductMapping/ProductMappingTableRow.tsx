@@ -72,7 +72,7 @@ export const ProductMappingTableRow = ({
 
   const excludeItemFromMapping = () => {
     const newProductMappings = productMappings.map((m) => {
-      if (m.price.id === item.price.id) {
+      if (m.product.id === item.product.id) {
         return { ...m, item: null }
       }
       return m
@@ -82,12 +82,12 @@ export const ProductMappingTableRow = ({
   }
 
   const handleSelectMapping = (newItem: ClientXeroItem) => {
-    const { itemID, name, code, amount } = newItem
+    const { itemID, name, code } = newItem
     const newProductMappings = productMappings.map((mapping) => {
-      if (mapping.price.id === item.price.id) {
+      if (mapping.product.id === item.product.id) {
         return {
           ...mapping,
-          item: { itemID, name, code, amount },
+          item: { itemID, name, code },
         }
       }
       return mapping
@@ -99,14 +99,11 @@ export const ProductMappingTableRow = ({
   const renderCurrency = (amount: number) => formatCurrencyForRegion(amount, countryCode)
 
   return (
-    <tr key={item.price.id} className="transition-colors">
+    <tr key={item.product.id} className="transition-colors">
       {/* Assembly Products Column */}
-      <td className="py-2 pr-3 pl-4" id={`price-id-${item.price.id}`}>
+      <td className="py-2 pr-3 pl-4" id={`product-id-${item.product.id}`}>
         <div className="break-all text-sm text-text-primary leading-5 lg:break-normal">
           {item.product.name}
-        </div>
-        <div className="text-body-xs text-text-secondary leading-5">
-          {renderCurrency(item.price.amount / 100)}
         </div>
       </td>
 
@@ -124,18 +121,15 @@ export const ProductMappingTableRow = ({
         <button
           type="button"
           onClick={() =>
-            setOpenDropdownId((prev) => (prev === item.price.id ? null : item.price.id))
+            setOpenDropdownId((prev) => (prev === item.product.id ? null : item.product.id))
           }
           className="mapping-btn grid h-full w-full grid-cols-6 py-2 pr-3 pl-4 transition-colors md:grid-cols-14"
         >
           <div className="col-span-5 text-left md:col-span-13">
             {xeroItem ? (
-              <div className="text-left">
+              <div className="py-2.5 text-left">
                 <div className="break-all text-sm text-text-primary leading-5 lg:break-normal">
                   {xeroItem.name}
-                </div>
-                <div className="text-body-xs text-text-secondary leading-5">
-                  {renderCurrency(xeroItem.amount)}
                 </div>
               </div>
             ) : (
@@ -150,7 +144,7 @@ export const ProductMappingTableRow = ({
         </button>
 
         {/* Dropdown */}
-        {item.price.id === openDropdownId && (
+        {item.product.id === openDropdownId && (
           <div
             ref={dropdownRef}
             className="items-dropdown !shadow-[0_6px_20px_0_rgba(0,0,0,0.07)] absolute top-full right-[-1px] left-[-145px] z-100 mt-[-4px] rounded-sm border border-dropdown-border bg-white md:left-[-1px] md:min-w-[320px]"
