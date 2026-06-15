@@ -14,19 +14,19 @@ import {
 
 export const serializeLineItems = (
   copilotItems: InvoiceCreatedEvent['lineItems'],
-  priceIdToXeroItem: Record<string, Item>,
+  productIdToXeroItem: Record<string, Item>,
   regionConfig: RegionConfig,
   taxRate?: TaxRate,
 ): LineItem[] => {
   logger.info('invoice-sync/lib/serializers#serializeLineItems :: Serializing line items:', {
     copilotItems,
-    priceIdToXeroItem,
+    productIdToXeroItem,
     taxRate,
   })
 
   const xeroLineItems: LineItem[] = []
   for (const item of copilotItems) {
-    const xeroItem = item.priceId ? priceIdToXeroItem[item.priceId] : undefined
+    const xeroItem = item.productId ? productIdToXeroItem[item.productId] : undefined
 
     const payload = {
       // NOTE: Both lineItemID and itemCode need to be provided for an invoice item to map to an item in Xero

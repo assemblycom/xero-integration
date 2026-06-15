@@ -61,7 +61,7 @@ class SyncedInvoicesService extends AuthenticatedXeroService {
 
     const taxRatePromise = this.getTaxRate(data, regionConfig)
     const contactPromise = this.getContact(data)
-    const priceIdToXeroItemPromise = this.getPriceIdToXeroItem(data)
+    const productIdToXeroItemPromise = this.getProductIdToXeroItem(data)
 
     // Xero rejects an invoice line whose accountCode doesn't exist in the org's chart of accounts
     const syncedAccountsService = new SyncedAccountsService(this.user, this.connection)
@@ -70,15 +70,15 @@ class SyncedInvoicesService extends AuthenticatedXeroService {
     const [
       taxRate,
       { contactID, emailAddress: customerEmail, name: customerName },
-      priceIdToXeroItem,
+      productIdToXeroItem,
     ] = await Promise.all([
       taxRatePromise,
       contactPromise,
-      priceIdToXeroItemPromise,
+      productIdToXeroItemPromise,
       salesAccountPromise,
     ])
 
-    const lineItems = serializeLineItems(data.lineItems, priceIdToXeroItem, regionConfig, taxRate)
+    const lineItems = serializeLineItems(data.lineItems, productIdToXeroItem, regionConfig, taxRate)
     if (!lineItems.length) {
       logger.info('No valid line items to sync to Xero invoice. Skipping sync...')
       return {
@@ -457,27 +457,27 @@ class SyncedInvoicesService extends AuthenticatedXeroService {
   }
 
   /**
-   * Creates a mapping of priceId to Xero Item for all line items in the invoice.
+   * Creates a mapping of productId to Xero Item for all line items in the invoice.
    * Uses the `syncProductsAutomatically` setting to determine whether to create new items in Xero or create a service invoice.
    */
-  private async getPriceIdToXeroItem(data: InvoiceCreatedEvent): Promise<Record<string, Item>> {
+  private async getProductIdToXeroItem(data: InvoiceCreatedEvent): Promise<Record<string, Item>> {
     logger.info(
-      'SyncedInvoicesService#getPriceIdToXeroItem :: Getting priceId to xero item for line items...',
+      'SyncedInvoicesService#getProductIdToXeroItem :: Getting productId to xero item for line items...',
     )
 
     const syncedItemsService = new SyncedItemsService(this.user, this.connection)
     const [xeroItems, syncedItemsMap] = await Promise.all([
       this.xero.getItems(this.connection.tenantId),
-      syncedItemsService.getSyncedItemsMapByPriceIds('all'),
+      syncedItemsService.getSyncedItemsMapByProductIds('all'),
     ])
     // const [xeroItems, syncedItemsMap, products, prices] = await Promise.all([
     //   this.xero.getItems(this.connection.tenantId),
-    //   syncedItemsService.getSyncedItemsMapByPriceIds('all'),
+    //   syncedItemsService.getSyncedItemsMapByProductIds('all'),
     //   this.copilot.getProductsMapById('all'),
     //   this.copilot.getPricesMapById('all'),
     // ])
 
-    const priceIdToXeroItem: Record<string, Item> = {}
+    const productIdToXeroItem: Record<string, Item> = {}
 
     // NOTE: IMPORTANT:
     // Uncomment commented lines if we want previously unsynced items to create new items on invoice creation
@@ -486,14 +486,14 @@ class SyncedInvoicesService extends AuthenticatedXeroService {
     // const itemCodeToPriceMap: Record<string, CopilotPrice> = {}
 
     for (const item of data.lineItems) {
-      if (!item.productId || !item.priceId) continue
+      if (!item.productId) continue
 
-      // Case I: For line item with productId & priceId, if synced product exists, use it
-      const matchedXeroItemId = syncedItemsMap[item.priceId]?.itemId
+      // Case I: For line item with productId, if synced product exists, use it
+      const matchedXeroItemId = syncedItemsMap[item.productId]?.itemId
       if (matchedXeroItemId) {
         const xeroItem = xeroItems.find((i) => i.itemID === matchedXeroItemId)
         if (xeroItem) {
-          priceIdToXeroItem[item.priceId] = xeroItem
+          productIdToXeroItem[item.productId] = xeroItem
           // continue
         }
       }
@@ -540,7 +540,7 @@ class SyncedInvoicesService extends AuthenticatedXeroService {
     //   }
     // }
 
-    return priceIdToXeroItem
+    return productIdToXeroItem
   }
 
   async getOrCreateInvoiceRecord(
