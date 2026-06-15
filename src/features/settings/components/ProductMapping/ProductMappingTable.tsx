@@ -36,7 +36,7 @@ export const ProductMappingTable = ({ items }: ProductMappingTableProps) => {
           {items.length ? (
             items.map((item) => (
               <ProductMappingTableRow
-                key={item.price.id}
+                key={item.product.id}
                 item={item}
                 openDropdownId={openDropdownId}
                 setOpenDropdownId={setOpenDropdownId}

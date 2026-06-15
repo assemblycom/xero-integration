@@ -20,7 +20,6 @@ export const updateSyncedItemsAction = async (token: string, productMappings: Pr
   return await productMappingsService.updateMappedItems(
     productMappings.map((mapping) => ({
       productId: mapping.product.id,
-      priceId: mapping.price.id,
       itemId: mapping.item?.itemID || null,
     })),
   )

@@ -33,36 +33,28 @@ class ProductMappingsService extends AuthenticatedXeroService {
     )
 
     const syncedItemsService = new SyncedItemsService(this.user, this.connection)
-    const mappingRecords = await syncedItemsService.getSyncedItemsMapByPriceIds('all')
+    const mappingRecords = await syncedItemsService.getSyncedItemsMapByProductIds('all')
 
-    const [xeroItems, copilotProducts, copilotPrices] = await Promise.all([
+    const [xeroItems, copilotProducts] = await Promise.all([
       this.xero.getItemsMap(this.connection.tenantId),
       this.copilot.getProductsMapById('all'),
-      this.copilot.getPricesMapById('all'),
     ])
 
-    const mappings = Object.values(copilotPrices)
-      // Sort by decreasing createdAt date
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      // Map each to distinct price, product & item objs
-      .map((price) => {
-        const mapping = mappingRecords[price.id]
-        const item = mapping && xeroItems[mapping.itemId || '']
-        return {
-          price,
-          product: copilotProducts[price.productId],
-          item: item
-            ? {
-                itemID: item.itemID,
-                code: item.code,
-                name: item.name,
-                amount: item.salesDetails?.unitPrice || 0,
-              }
-            : null,
-        }
-      })
-      // Because the list endpoint could contain data for deleted products with hanging prices as well, remove them!
-      .filter((obj) => obj.product)
+    // One row per product now that synced items map at the product level
+    const mappings = Object.values(copilotProducts).map((product) => {
+      const mapping = mappingRecords[product.id]
+      const item = mapping && xeroItems[mapping.itemId || '']
+      return {
+        product,
+        item: item
+          ? {
+              itemID: item.itemID,
+              code: item.code,
+              name: item.name,
+            }
+          : null,
+      }
+    })
 
     return mappings
   }
@@ -73,7 +65,7 @@ class ProductMappingsService extends AuthenticatedXeroService {
       productMappings,
     )
 
-    // Create a map with priceId as key and SyncedItem as value
+    // Create a map with productId as key and SyncedItem as value
     const dbMappings = (
       await this.db
         .select()
@@ -85,7 +77,7 @@ class ProductMappingsService extends AuthenticatedXeroService {
           ),
         )
     ).reduce<Record<string, SyncedItem>>((acc, mapping) => {
-      acc[mapping.priceId] = mapping
+      acc[mapping.productId] = mapping
       return acc
     }, {})
 
@@ -93,7 +85,7 @@ class ProductMappingsService extends AuthenticatedXeroService {
       deletedMappings: Mappable[] = []
 
     for (const mapping of productMappings) {
-      const existingMapping = dbMappings[mapping.priceId]
+      const existingMapping = dbMappings[mapping.productId]
 
       // CASE I: Mapping exists or doesn't exist and is unchanged
       if (
