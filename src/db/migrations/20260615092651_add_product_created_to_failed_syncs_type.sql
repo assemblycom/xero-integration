@@ -1,0 +1,1 @@
+ALTER TYPE "public"."failed_syncs_type" ADD VALUE 'product.created' BEFORE 'payment.succeeded';
