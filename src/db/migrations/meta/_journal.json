@@ -92,6 +92,13 @@
       "when": 1781265384050,
       "tag": "20260612115624_drop_price_id_from_synced_items",
       "breakpoints": false
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1781515611991,
+      "tag": "20260615092651_add_product_created_to_failed_syncs_type",
+      "breakpoints": false
     }
   ]
 }
