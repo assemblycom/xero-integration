@@ -9,7 +9,9 @@ export const failedSyncTypeEnum = pgEnum('failed_syncs_type', [
   ValidWebhookEvent.InvoiceVoided,
   ValidWebhookEvent.InvoiceDeleted,
   ValidWebhookEvent.ProductUpdated,
+  // Legacy: no longer emitted, kept so historical failed_syncs rows stay valid
   ValidWebhookEvent.PriceCreated,
+  ValidWebhookEvent.ProductCreated,
   ValidWebhookEvent.PaymentSucceeded,
 ])
 
