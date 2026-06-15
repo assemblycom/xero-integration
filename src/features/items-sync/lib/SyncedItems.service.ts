@@ -1,6 +1,6 @@
 import 'server-only'
 
-import type { PriceCreatedEvent } from '@invoice-sync/types'
+import type { ProductCreatedEvent } from '@invoice-sync/types'
 import type { Mappable } from '@items-sync/types'
 import { SyncLogsService } from '@sync-logs/lib/SyncLogs.service'
 import { and, eq, inArray } from 'drizzle-orm'
@@ -18,28 +18,35 @@ import { htmlToText } from '@/utils/html'
 import { genRandomString } from '@/utils/string'
 
 class SyncedItemsService extends AuthenticatedXeroService {
-  async createItems(itemsToCreate: Item[], pricesForCode: Record<string, PriceCreatedEvent>) {
-    logger.info('SyncedItemsService#createItems :: Creating items:', itemsToCreate, pricesForCode)
+  async createItems(itemsToCreate: Item[], productIdForCode: Record<string, string>) {
+    logger.info(
+      'SyncedItemsService#createItems :: Creating items:',
+      itemsToCreate,
+      productIdForCode,
+    )
 
     if (!itemsToCreate.length) return []
 
     const newlyCreatedItems = await this.xero.createItems(this.connection.tenantId, itemsToCreate)
-    await this.db.insert(syncedItems).values(
-      newlyCreatedItems.map((item) => {
-        const price = pricesForCode[item.code]
-        const insertPayload = {
-          portalId: this.user.portalId,
-          productId: price.productId,
-          itemId: z.uuid().parse(item.itemID),
-          tenantId: this.connection.tenantId,
-        }
-        logger.info(
-          'SyncedItemsService#createItems :: Inserting synced item record:',
-          insertPayload,
-        )
-        return insertPayload
-      }),
-    )
+    await this.db
+      .insert(syncedItems)
+      .values(
+        newlyCreatedItems.map((item) => {
+          const insertPayload = {
+            portalId: this.user.portalId,
+            productId: productIdForCode[item.code],
+            itemId: z.uuid().parse(item.itemID),
+            tenantId: this.connection.tenantId,
+          }
+          logger.info(
+            'SyncedItemsService#createItems :: Inserting synced item record:',
+            insertPayload,
+          )
+          return insertPayload
+        }),
+      )
+      // One item per product: ignore if this product was already mapped (race safety)
+      .onConflictDoNothing()
     return newlyCreatedItems
   }
 
@@ -142,34 +149,37 @@ class SyncedItemsService extends AuthenticatedXeroService {
     return items
   }
 
-  async createSyncedItemsForPrices(prices: PriceCreatedEvent[]): Promise<Item[]> {
+  async createSyncedItemsForProducts(products: ProductCreatedEvent[]): Promise<Item[]> {
     logger.info(
-      'SyncedItemsService#createSyncedItemsForPrices :: Creating synced items for prices',
-      prices,
+      'SyncedItemsService#createSyncedItemsForProducts :: Creating synced items for products',
+      products,
     )
     const createdItems: Item[] = []
 
-    for (const price of prices) {
-      const productMap = await this.copilot.getProductsMapById([price.productId])
-      const product = productMap[price.productId]
-      if (!product) {
-        throw new APIError('Could not find product for mapping', status.BAD_REQUEST)
+    // One Xero Item per product: skip products that are already mapped
+    const existingMappings = await this.getSyncedItemsMapByProductIds(products.map((p) => p.id))
+
+    for (const product of products) {
+      if (existingMappings[product.id]) {
+        logger.info(
+          'SyncedItemsService#createSyncedItemsForProducts :: Product already mapped, skipping',
+          product.id,
+        )
+        continue
       }
 
+      // No unitPrice: created items carry no price, invoice lines always supply it
       const payload = {
         code: genRandomString(12),
         name: product.name,
         description: htmlToText(product.description),
         isPurchased: false,
-        salesDetails: {
-          unitPrice: price.amount / 100,
-        },
       }
 
       const syncLogsService = new SyncLogsService(this.user, this.connection)
 
       try {
-        const items = await this.createItems([payload], { [payload.code]: price })
+        const items = await this.createItems([payload], { [payload.code]: product.id })
         createdItems.push(items[0])
 
         await syncLogsService.createSyncLog({
@@ -177,23 +187,25 @@ class SyncedItemsService extends AuthenticatedXeroService {
           eventType: SyncEventType.CREATED,
           status: SyncStatus.SUCCESS,
           syncDate: new Date(),
-          copilotId: price.productId,
+          copilotId: product.id,
           xeroId: items[0].itemID,
           xeroItemName: items[0].name,
           productName: product.name,
-          productPrice: String(price.amount / 100),
         })
       } catch (error: unknown) {
-        throw new APIError('Failed to create synced item for price', status.INTERNAL_SERVER_ERROR, {
-          error,
-          failedSyncLogPayload: {
-            entityType: SyncEntityType.PRODUCT,
-            eventType: SyncEventType.CREATED,
-            copilotId: price.productId,
-            productName: product.name,
-            productPrice: String(price.amount / 100),
+        throw new APIError(
+          'Failed to create synced item for product',
+          status.INTERNAL_SERVER_ERROR,
+          {
+            error,
+            failedSyncLogPayload: {
+              entityType: SyncEntityType.PRODUCT,
+              eventType: SyncEventType.CREATED,
+              copilotId: product.id,
+              productName: product.name,
+            },
           },
-        })
+        )
       }
     }
     return createdItems
@@ -204,7 +216,7 @@ class SyncedItemsService extends AuthenticatedXeroService {
 
     const syncLogsService = new SyncLogsService(this.user, this.connection)
 
-    // We have to do this one-by-one because xero doesn't provide a bulk delete API
+    // One-by-one so we can write a sync log per mapping
     for (const item of items) {
       logger.info('SyncedItemsService#addSyncedItems :: Adding mapping', item)
 
@@ -213,7 +225,7 @@ class SyncedItemsService extends AuthenticatedXeroService {
           'SyncedItemsService#addSyncedItem :: Attempted to add non existant itemId for ',
           item,
         )
-        return
+        continue
       }
 
       await this.db.insert(syncedItems).values({
@@ -244,7 +256,7 @@ class SyncedItemsService extends AuthenticatedXeroService {
     logger.info('SyncedItemsService#deleteSyncedItems :: Deleting synced items', items)
     const syncLogsService = new SyncLogsService(this.user, this.connection)
 
-    // We have to do this one-by-one because xero doesn't provide a bulk delete API
+    // One-by-one so we can write a sync log per unmapping
     for (const item of items) {
       logger.info('SyncedItemsService#deleteSyncedItems :: Deleting mapping', item)
 
@@ -253,7 +265,7 @@ class SyncedItemsService extends AuthenticatedXeroService {
           'SyncedItemsService#deleteSyncedItem :: Attempted to delete non existant itemId for ',
           item,
         )
-        return
+        continue
       }
 
       await this.db
