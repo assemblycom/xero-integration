@@ -30,7 +30,6 @@ class SyncedItemsService extends AuthenticatedXeroService {
         const insertPayload = {
           portalId: this.user.portalId,
           productId: price.productId,
-          priceId: price.id,
           itemId: z.uuid().parse(item.itemID),
           tenantId: this.connection.tenantId,
         }
@@ -45,26 +44,28 @@ class SyncedItemsService extends AuthenticatedXeroService {
   }
 
   /**
-   * Returns a list of Mappable items where the key is the priceId
+   * Returns a list of Mappable items where the key is the productId
    */
-  async getSyncedItemsMapByPriceIds(priceIds: string[] | 'all'): Promise<Record<string, Mappable>> {
+  async getSyncedItemsMapByProductIds(
+    productIds: string[] | 'all',
+  ): Promise<Record<string, Mappable>> {
     logger.info(
-      'SyncedItemsService#getSyncedItemsMapByPriceIds :: Getting synced items map for priceIds',
-      priceIds,
+      'SyncedItemsService#getSyncedItemsMapByProductIds :: Getting synced items map for productIds',
+      productIds,
     )
 
     const dbMappings = await this.db
-      .select(getTableFields(syncedItems, ['productId', 'priceId', 'itemId']))
+      .select(getTableFields(syncedItems, ['productId', 'itemId']))
       .from(syncedItems)
       .where(
         and(
           eq(syncedItems.portalId, this.user.portalId),
           eq(syncedItems.tenantId, this.connection.tenantId),
-          priceIds === 'all' ? undefined : inArray(syncedItems.priceId, priceIds),
+          productIds === 'all' ? undefined : inArray(syncedItems.productId, productIds),
         ),
       )
     return dbMappings.reduce<Record<string, (typeof dbMappings)[0]>>((acc, mapping) => {
-      acc[mapping.priceId] = mapping
+      acc[mapping.productId] = mapping
       return acc
     }, {})
   }
@@ -111,9 +112,8 @@ class SyncedItemsService extends AuthenticatedXeroService {
         })
         items.push(updatedItem)
 
-        const { copilotProduct, copilotPrice, xeroItem } = await this.getCopilotProductAndPrice(
+        const { copilotProduct, xeroItem } = await this.getCopilotProductAndXeroItem(
           item.productId,
-          item.priceId,
           item.itemId,
         )
 
@@ -126,7 +126,6 @@ class SyncedItemsService extends AuthenticatedXeroService {
           xeroId: item.itemId,
           xeroItemName: xeroItem?.name,
           productName: copilotProduct?.name,
-          productPrice: String((copilotPrice?.amount || 0) / 100),
         })
       } catch (error: unknown) {
         throw new APIError('Failed to update synced item', status.INTERNAL_SERVER_ERROR, {
@@ -221,13 +220,11 @@ class SyncedItemsService extends AuthenticatedXeroService {
         portalId: this.user.portalId,
         tenantId: this.connection.tenantId,
         productId: item.productId,
-        priceId: item.priceId,
         itemId: item.itemId,
       })
 
-      const { copilotProduct, copilotPrice, xeroItem } = await this.getCopilotProductAndPrice(
+      const { copilotProduct, xeroItem } = await this.getCopilotProductAndXeroItem(
         item.productId,
-        item.priceId,
         item.itemId,
       )
       await syncLogsService.createSyncLog({
@@ -238,7 +235,6 @@ class SyncedItemsService extends AuthenticatedXeroService {
         copilotId: item.productId,
         xeroId: item.itemId,
         productName: copilotProduct?.name,
-        productPrice: String((copilotPrice?.amount || 0) / 100),
         xeroItemName: xeroItem?.name,
       })
     }
@@ -267,13 +263,11 @@ class SyncedItemsService extends AuthenticatedXeroService {
             eq(syncedItems.portalId, this.user.portalId),
             eq(syncedItems.tenantId, this.connection.tenantId),
             eq(syncedItems.productId, item.productId),
-            eq(syncedItems.priceId, item.priceId),
             eq(syncedItems.itemId, item.itemId),
           ),
         )
-      const { copilotProduct, copilotPrice, xeroItem } = await this.getCopilotProductAndPrice(
+      const { copilotProduct, xeroItem } = await this.getCopilotProductAndXeroItem(
         item.productId,
-        item.priceId,
         item.itemId,
       )
       await syncLogsService.createSyncLog({
@@ -284,28 +278,22 @@ class SyncedItemsService extends AuthenticatedXeroService {
         copilotId: item.productId,
         xeroId: item.itemId,
         productName: copilotProduct?.name,
-        productPrice: String((copilotPrice?.amount || 0) / 100),
         xeroItemName: xeroItem?.name,
       })
     }
   }
 
-  private async getCopilotProductAndPrice(productId: string, priceId: string, itemId: string) {
+  private async getCopilotProductAndXeroItem(productId: string, itemId: string) {
     try {
-      const copilotProductMapPromise = this.copilot.getProductsMapById([productId])
-      const copilotPriceMapPromise = this.copilot.getPricesMapById([priceId])
-      const xeroItemMapPromise = this.xero.getItemsMap(this.connection.tenantId)
-      const [copilotProductMap, copilotPriceMap, xeroItemMap] = await Promise.all([
-        copilotProductMapPromise,
-        copilotPriceMapPromise,
-        xeroItemMapPromise,
+      const [copilotProductMap, xeroItemMap] = await Promise.all([
+        this.copilot.getProductsMapById([productId]),
+        this.xero.getItemsMap(this.connection.tenantId),
       ])
       const copilotProduct = copilotProductMap[productId]
-      const copilotPrice = copilotPriceMap[priceId]
       const xeroItem = xeroItemMap[itemId]
-      return { copilotProduct, copilotPrice, xeroItem }
+      return { copilotProduct, xeroItem }
     } catch (_) {
-      return { copilotProduct: null, copilotPrice: null, xeroItem: null }
+      return { copilotProduct: null, xeroItem: null }
     }
   }
 }

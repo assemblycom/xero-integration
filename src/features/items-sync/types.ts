@@ -7,4 +7,4 @@ export type ProductMapping = {
   item?: (Pick<Item, 'itemID' | 'code' | 'name'> & { amount: number }) | null
 }
 
-export type Mappable = { productId: string; priceId: string; itemId: string | null }
+export type Mappable = { productId: string; itemId: string | null }
