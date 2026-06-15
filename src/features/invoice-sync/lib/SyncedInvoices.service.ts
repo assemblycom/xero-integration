@@ -497,48 +497,7 @@ class SyncedInvoicesService extends AuthenticatedXeroService {
           // continue
         }
       }
-
-      // CASE II: If synced product doesn't exist, create new ones
-      // const code = genRandomString(12)
-      // const copilotProduct = products[item.productId]
-      // const copilotPrice = prices[item.priceId]
-      //
-      // logger.info(
-      //   'XeroInvoiceSyncService#getPriceIdToXeroItem :: Creating new item for lineItem',
-      //   item.description,
-      //   {
-      //     copilotProduct,
-      //     copilotPrice,
-      //   },
-      // )
-      // itemsToCreate.push({
-      //   code,
-      //   name: copilotProduct.name,
-      //   description: htmlToText(copilotProduct.description),
-      //   isPurchased: false,
-      //   salesDetails: {
-      //     unitPrice: copilotPrice.amount / 100,
-      //   },
-      // })
-      // itemCodeToPriceMap[code] = copilotPrice
     }
-
-    // Create missing items in Xero
-    // if (itemsToCreate.length) {
-    //   logger.info(
-    //     'XeroInvoiceService#getPriceIdToXeroItem :: Did not find these synced items. Creating new items and syncing them...',
-    //     itemsToCreate,
-    //   )
-    //
-    //   const newlyCreatedItems = await syncedItemsService.createItems(
-    //     itemsToCreate,
-    //     itemCodeToPriceMap,
-    //   )
-    //   for (const item of newlyCreatedItems) {
-    //     const price = itemCodeToPriceMap[item.code]
-    //     priceIdToXeroItem[price.id] = item
-    //   }
-    // }
 
     return productIdToXeroItem
   }
