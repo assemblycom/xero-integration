@@ -1,7 +1,7 @@
 import { boolean, pgTable, uniqueIndex, uuid, varchar } from 'drizzle-orm/pg-core'
 import { createSelectSchema, createUpdateSchema } from 'drizzle-zod'
 import type z from 'zod'
-import { timestamps } from '@/db/db.helpers'
+import { getTableFields, timestamps } from '@/db/db.helpers'
 
 export const settings = pgTable(
   'settings',
@@ -16,6 +16,11 @@ export const settings = pgTable(
 
     // Xero organisation country code (e.g. 'US', 'AU'); null until first resolved
     countryCode: varchar({ length: 8 }),
+
+    // User-selected Xero accounts (AccountID GUID). Null => fall back to region defaults.
+    incomeAccountId: uuid(),
+    bankAccountId: uuid(),
+    expenseAccountId: uuid(),
 
     // Settings form checkbox flags
     syncProductsAutomatically: boolean().notNull().default(false),
@@ -43,7 +48,23 @@ export type SettingsFields = Omit<
   'id' | 'portalId' | 'tenantId' | 'createdAt' | 'updatedAt'
 >
 
+// Canonical column set returned when reading/updating settings. Shared by Settings.service
+// and updateSettingsAction so a new column is exposed in exactly one place.
+export const SETTINGS_SELECT_FIELDS = getTableFields(settings, [
+  'syncProductsAutomatically',
+  'addAbsorbedFees',
+  'useCompanyName',
+  'isSyncEnabled',
+  'initialInvoiceSettingsMapping',
+  'initialProductSettingsMapping',
+  'countryCode',
+  'incomeAccountId',
+  'bankAccountId',
+  'expenseAccountId',
+])
+
 // countryCode is set server-side only, so keep it out of client updates.
+// The *AccountId fields are intentionally client-writable (set from the settings UI).
 export const SettingsUpdateSchema = createUpdateSchema(settings).omit({
   id: true,
   portalId: true,

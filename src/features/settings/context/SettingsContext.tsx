@@ -33,6 +33,9 @@ export const SettingsContextProvider = ({
   initialProductSettingsMapping,
   isSyncEnabled,
   countryCode,
+  incomeAccountId,
+  bankAccountId,
+  expenseAccountId,
   productMappings,
   xeroItems,
   children,
@@ -46,6 +49,9 @@ export const SettingsContextProvider = ({
     productMappings,
     isSyncEnabled,
     countryCode,
+    incomeAccountId,
+    bankAccountId,
+    expenseAccountId,
     xeroItems,
 
     initialSettings: {
@@ -56,6 +62,9 @@ export const SettingsContextProvider = ({
       initialProductSettingsMapping,
       isSyncEnabled,
       countryCode,
+      incomeAccountId,
+      bankAccountId,
+      expenseAccountId,
       productMappings,
     },
   })

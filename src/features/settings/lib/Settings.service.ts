@@ -1,22 +1,13 @@
 import { defaultSettings } from '@settings/constants/defaults'
 import { and, eq } from 'drizzle-orm'
 import status from 'http-status'
-import { getTableFields } from '@/db/db.helpers'
-import { type SettingsFields, settings } from '@/db/schema/settings.schema'
+import { SETTINGS_SELECT_FIELDS, type SettingsFields, settings } from '@/db/schema/settings.schema'
 import APIError from '@/errors/APIError'
 import logger from '@/lib/logger'
 import AuthenticatedXeroService from '@/lib/xero/AuthenticatedXero.service'
 
 class SettingsService extends AuthenticatedXeroService {
-  private readonly settingsFields = getTableFields(settings, [
-    'syncProductsAutomatically',
-    'addAbsorbedFees',
-    'useCompanyName',
-    'isSyncEnabled',
-    'initialInvoiceSettingsMapping',
-    'initialProductSettingsMapping',
-    'countryCode',
-  ])
+  private readonly settingsFields = SETTINGS_SELECT_FIELDS
 
   private readonly MAX_RETRY_ATTEMPTS = 3
 

@@ -8,4 +8,7 @@ export const defaultSettings: SettingsFields = {
   initialProductSettingsMapping: false,
   isSyncEnabled: false,
   countryCode: null,
+  incomeAccountId: null,
+  bankAccountId: null,
+  expenseAccountId: null,
 }
