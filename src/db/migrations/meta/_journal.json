@@ -99,6 +99,13 @@
       "when": 1781515611991,
       "tag": "20260615092651_add_product_created_to_failed_syncs_type",
       "breakpoints": false
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1781780635160,
+      "tag": "20260618110355_add_account_ids_to_settings",
+      "breakpoints": false
     }
   ]
 }

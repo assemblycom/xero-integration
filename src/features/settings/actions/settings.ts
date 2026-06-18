@@ -3,8 +3,12 @@
 import AuthService from '@auth/lib/Auth.service'
 import { and, eq } from 'drizzle-orm'
 import db from '@/db'
-import { getTableFields } from '@/db/db.helpers'
-import { type SettingsFields, SettingsUpdateSchema, settings } from '@/db/schema/settings.schema'
+import {
+  SETTINGS_SELECT_FIELDS,
+  type SettingsFields,
+  SettingsUpdateSchema,
+  settings,
+} from '@/db/schema/settings.schema'
 import User from '@/lib/copilot/models/User.model'
 
 export const updateSettingsAction = async (
@@ -22,17 +26,7 @@ export const updateSettingsAction = async (
     .update(settings)
     .set(parsedPayload)
     .where(and(eq(settings.portalId, user.portalId), eq(settings.tenantId, connection.tenantId)))
-    .returning(
-      getTableFields(settings, [
-        'syncProductsAutomatically',
-        'addAbsorbedFees',
-        'useCompanyName',
-        'initialInvoiceSettingsMapping',
-        'initialProductSettingsMapping',
-        'isSyncEnabled',
-        'countryCode',
-      ]),
-    )
+    .returning(SETTINGS_SELECT_FIELDS)
 
   return results
 }
