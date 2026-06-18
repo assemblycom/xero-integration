@@ -4,7 +4,6 @@ import type { Item, TaxRate, LineItem as XeroLineItem } from 'xero-node'
 import type { ClientResponse, CompanyResponse } from '@/lib/copilot/types'
 import { buildClientName } from '@/lib/copilot/utils'
 import logger from '@/lib/logger'
-import type { RegionConfig } from '@/lib/xero/region'
 import {
   type ContactCreatePayload,
   ContactCreatePayloadSchema,
@@ -15,7 +14,7 @@ import {
 export const serializeLineItems = (
   copilotItems: InvoiceCreatedEvent['lineItems'],
   productIdToXeroItem: Record<string, Item>,
-  regionConfig: RegionConfig,
+  salesAccountCode: string,
   taxRate?: TaxRate,
 ): LineItem[] => {
   logger.info('invoice-sync/lib/serializers#serializeLineItems :: Serializing line items:', {
@@ -39,7 +38,7 @@ export const serializeLineItems = (
       quantity: item.quantity,
       taxAmount: calculateTaxAmount(item.amount, item.quantity, taxRate?.effectiveRate),
       taxType: taxRate?.taxType,
-      accountCode: regionConfig.accountCodes.sales,
+      accountCode: salesAccountCode,
     } satisfies XeroLineItem
     xeroLineItems.push(LineItemSchema.parse(payload))
   }

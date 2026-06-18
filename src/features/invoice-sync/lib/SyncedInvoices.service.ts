@@ -71,6 +71,7 @@ class SyncedInvoicesService extends AuthenticatedXeroService {
       taxRate,
       { contactID, emailAddress: customerEmail, name: customerName },
       productIdToXeroItem,
+      salesAccount,
     ] = await Promise.all([
       taxRatePromise,
       contactPromise,
@@ -78,7 +79,12 @@ class SyncedInvoicesService extends AuthenticatedXeroService {
       salesAccountPromise,
     ])
 
-    const lineItems = serializeLineItems(data.lineItems, productIdToXeroItem, regionConfig, taxRate)
+    const lineItems = serializeLineItems(
+      data.lineItems,
+      productIdToXeroItem,
+      z.string().parse(salesAccount.code),
+      taxRate,
+    )
     if (!lineItems.length) {
       logger.info('No valid line items to sync to Xero invoice. Skipping sync...')
       return {
@@ -258,13 +264,13 @@ class SyncedInvoicesService extends AuthenticatedXeroService {
 
     try {
       const syncedAccountsService = new SyncedAccountsService(this.user, this.connection)
-      await syncedAccountsService.getOrCreateCopilotSalesAccount(regionConfig)
+      const salesAccount = await syncedAccountsService.getOrCreateCopilotSalesAccount(regionConfig)
 
       const payment = await this.xero.markInvoicePaid(
         this.connection.tenantId,
         xeroInvoiceId,
         z.coerce.number().parse(invoice.total),
-        regionConfig.accountCodes.sales,
+        z.string().parse(salesAccount.code),
       )
 
       if (!payment) {

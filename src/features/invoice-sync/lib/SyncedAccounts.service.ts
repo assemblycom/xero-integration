@@ -1,27 +1,21 @@
+import SettingsService from '@settings/lib/Settings.service'
 import status from 'http-status'
 import { type Account, AccountType } from 'xero-node'
 import z from 'zod'
+import type { SettingsFields } from '@/db/schema/settings.schema'
 import APIError from '@/errors/APIError'
 import logger from '@/lib/logger'
 import AuthenticatedXeroService from '@/lib/xero/AuthenticatedXero.service'
+import {
+  BANK_ACCOUNT_TYPES,
+  EXPENSE_ACCOUNT_TYPES,
+  INCOME_ACCOUNT_TYPES,
+} from '@/lib/xero/accounts'
 import type { RegionConfig } from '@/lib/xero/region'
-
-// Account types Xero accepts on the relevant document. We only flag a conflict when the
-// configured code is held by an account whose type genuinely can't back that transaction
-// (e.g. a bank/expense account sitting on the sales code), not for equivalent income types.
-const SALES_ACCOUNT_TYPES: AccountType[] = [
-  AccountType.SALES,
-  AccountType.REVENUE,
-  AccountType.OTHERINCOME,
-]
-const EXPENSE_ACCOUNT_TYPES: AccountType[] = [
-  AccountType.EXPENSE,
-  AccountType.OVERHEADS,
-  AccountType.DIRECTCOSTS,
-]
 
 class SyncedAccountsService extends AuthenticatedXeroService {
   private accountsPromise?: Promise<Account[]>
+  private settingsPromise?: Promise<SettingsFields>
 
   // Fetch the tenant's accounts once per instance. Each getOrCreate* method targets a
   // distinct code, so they can share one list (and parallel callers share one request).
@@ -30,10 +24,88 @@ class SyncedAccountsService extends AuthenticatedXeroService {
     return this.accountsPromise
   }
 
+  // Read settings once per instance so the three getOrCreate* methods share one query.
+  private getSettings(): Promise<SettingsFields> {
+    this.settingsPromise ??= new SettingsService(this.user, this.connection).getOrCreateSettings()
+    return this.settingsPromise
+  }
+
+  // Resolves a user-selected account by AccountID. Returns null (caller falls back to the
+  // region default) when nothing is selected or the selection no longer exists in Xero.
+  // Throws CONFLICT when the selected account exists but can't back this transaction type.
+  private async resolveSelectedAccount(
+    selectedAccountId: string | null | undefined,
+    allowedTypes: AccountType[],
+    label: string,
+  ): Promise<Account | null> {
+    if (!selectedAccountId) return null
+
+    const accounts = await this.getAccounts()
+    const selected = accounts.find((acc) => acc.accountID === selectedAccountId)
+
+    if (!selected) {
+      logger.warn(
+        `SyncedAccountsService#resolveSelectedAccount :: Selected ${label} account ${selectedAccountId} not found in Xero; falling back to region default`,
+      )
+      return null
+    }
+
+    if (selected.type && !allowedTypes.includes(selected.type)) {
+      throw new APIError(
+        `Selected Xero ${label} account is a ${selected.type} account and cannot be used for the Assembly ${label} account`,
+        status.CONFLICT,
+      )
+    }
+
+    return selected
+  }
+
+  // Resolves a user-selected account and readies it for use: enables payments when required
+  // (sales/expense; bank accounts don't expose the flag). Returns null when there's no valid
+  // selection, so the caller falls back to the region-default get-or-create path.
+  private async getSelectedAccount(
+    selectedAccountId: string | null | undefined,
+    allowedTypes: AccountType[],
+    label: string,
+    enablePayments: boolean,
+  ): Promise<Account | null> {
+    const selected = await this.resolveSelectedAccount(selectedAccountId, allowedTypes, label)
+    if (!selected) return null
+
+    // Every consumer posts against the account's code, so a code-less selection is unusable.
+    if (!selected.code) {
+      throw new APIError(
+        `Selected Xero ${label} account has no account code and cannot be used`,
+        status.CONFLICT,
+      )
+    }
+
+    if (enablePayments && !selected.enablePaymentsToAccount) {
+      await this.xero.enablePaymentsForAccount(
+        this.connection.tenantId,
+        z.string().parse(selected.accountID),
+      )
+      // Keep the cached account coherent so a later resolve doesn't re-enable it.
+      selected.enablePaymentsToAccount = true
+    }
+
+    logger.info(`SyncedAccountsService :: Using selected ${label} account:`, selected)
+    return selected
+  }
+
   async getOrCreateCopilotSalesAccount(regionConfig: RegionConfig): Promise<Account> {
     logger.info(
       'SyncedAccountsService#getOrCreateCopilotSalesAccount :: Getting copilot sales account',
     )
+
+    const settings = await this.getSettings()
+    const selected = await this.getSelectedAccount(
+      settings.incomeAccountId,
+      INCOME_ACCOUNT_TYPES,
+      'sales',
+      true,
+    )
+    if (selected) return selected
 
     const { sales: code } = regionConfig.accountCodes
     const accounts = await this.getAccounts()
@@ -41,7 +113,7 @@ class SyncedAccountsService extends AuthenticatedXeroService {
 
     // CASE I: The code is already taken by an account whose type can't back a sales invoice
     // line. Don't hijack it, and don't attempt to create (codes must be unique) — fail clearly.
-    if (existing?.type && !SALES_ACCOUNT_TYPES.includes(existing.type)) {
+    if (existing?.type && !INCOME_ACCOUNT_TYPES.includes(existing.type)) {
       throw new APIError(
         `Xero account code ${code} is already used by a ${existing.type} account and cannot be used for the Assembly sales account`,
         status.CONFLICT,
@@ -89,6 +161,15 @@ class SyncedAccountsService extends AuthenticatedXeroService {
     logger.info(
       'SyncedAccountsService#getOrCreateCopilotExpenseAccount :: Getting copilot expense account',
     )
+
+    const settings = await this.getSettings()
+    const selected = await this.getSelectedAccount(
+      settings.expenseAccountId,
+      EXPENSE_ACCOUNT_TYPES,
+      'expense',
+      true,
+    )
+    if (selected) return selected
 
     const { merchantFees: code } = regionConfig.accountCodes
     const accounts = await this.getAccounts()
@@ -144,6 +225,15 @@ class SyncedAccountsService extends AuthenticatedXeroService {
     logger.info(
       'SyncedAccountsService#getOrCreateCopilotAssetAccount :: Getting copilot asset account',
     )
+
+    const settings = await this.getSettings()
+    const selected = await this.getSelectedAccount(
+      settings.bankAccountId,
+      BANK_ACCOUNT_TYPES,
+      'asset',
+      false,
+    )
+    if (selected) return selected
 
     const { bank: code } = regionConfig.accountCodes
     const accounts = await this.getAccounts()
