@@ -10,7 +10,7 @@ import isDeepEqual from 'deep-equal'
 import { useState } from 'react'
 
 interface ConfirmSettingsProps {
-  mode: 'product' | 'invoice'
+  mode: 'product' | 'invoice' | 'account'
 }
 
 export const ConfirmSettings = ({ mode }: ConfirmSettingsProps) => {
@@ -22,6 +22,9 @@ export const ConfirmSettings = ({ mode }: ConfirmSettingsProps) => {
     productMappings,
     addAbsorbedFees,
     useCompanyName,
+    incomeAccountId,
+    bankAccountId,
+    expenseAccountId,
     updateSettings,
   } = useSettingsContext()
 
@@ -29,18 +32,26 @@ export const ConfirmSettings = ({ mode }: ConfirmSettingsProps) => {
 
   const [isPending, setIsPending] = useState(false)
 
-  const [initialMapping, showButtons] =
-    mode === 'product'
-      ? [
-          initialProductSettingsMapping,
-          syncProductsAutomatically !== initialSettings.syncProductsAutomatically ||
-            !isDeepEqual(productMappings, initialSettings.productMappings),
-        ]
-      : [
-          initialInvoiceSettingsMapping,
-          addAbsorbedFees !== initialSettings.addAbsorbedFees ||
-            useCompanyName !== initialSettings.useCompanyName,
-        ]
+  let initialMapping: boolean
+  let showButtons: boolean
+  if (mode === 'product') {
+    initialMapping = initialProductSettingsMapping
+    showButtons =
+      syncProductsAutomatically !== initialSettings.syncProductsAutomatically ||
+      !isDeepEqual(productMappings, initialSettings.productMappings)
+  } else if (mode === 'invoice') {
+    initialMapping = initialInvoiceSettingsMapping
+    showButtons =
+      addAbsorbedFees !== initialSettings.addAbsorbedFees ||
+      useCompanyName !== initialSettings.useCompanyName
+  } else {
+    // No first-time flag for accounts; show controls only when there are changes.
+    initialMapping = true
+    showButtons =
+      incomeAccountId !== initialSettings.incomeAccountId ||
+      bankAccountId !== initialSettings.bankAccountId ||
+      expenseAccountId !== initialSettings.expenseAccountId
+  }
 
   const onConfirm = async (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -50,7 +61,6 @@ export const ConfirmSettings = ({ mode }: ConfirmSettingsProps) => {
 
     setIsPending(true)
     try {
-      // --- Apply confirm / update action for Product section of the form
       if (mode === 'product') {
         updateSettings({ initialProductSettingsMapping: true })
 
@@ -70,14 +80,26 @@ export const ConfirmSettings = ({ mode }: ConfirmSettingsProps) => {
           ...newSettings,
           productMappings: newMappings,
         })
-      } else {
+      } else if (mode === 'invoice') {
         updateSettings({ initialInvoiceSettingsMapping: true })
 
-        // --- Apply confirm action for Invoice section of the form
         const newSettings = await updateSettingsAction(user.token, {
           addAbsorbedFees,
           useCompanyName,
           initialInvoiceSettingsMapping: true,
+        })
+        updateSettings({
+          initialSettings: {
+            ...initialSettings,
+            ...newSettings,
+          },
+          ...newSettings,
+        })
+      } else {
+        const newSettings = await updateSettingsAction(user.token, {
+          incomeAccountId,
+          bankAccountId,
+          expenseAccountId,
         })
         updateSettings({
           initialSettings: {
@@ -104,10 +126,16 @@ export const ConfirmSettings = ({ mode }: ConfirmSettingsProps) => {
             syncProductsAutomatically: initialSettings.syncProductsAutomatically,
             productMappings: initialSettings.productMappings,
           }
-        : {
-            addAbsorbedFees: initialSettings.addAbsorbedFees,
-            useCompanyName: initialSettings.useCompanyName,
-          }
+        : mode === 'invoice'
+          ? {
+              addAbsorbedFees: initialSettings.addAbsorbedFees,
+              useCompanyName: initialSettings.useCompanyName,
+            }
+          : {
+              incomeAccountId: initialSettings.incomeAccountId,
+              bankAccountId: initialSettings.bankAccountId,
+              expenseAccountId: initialSettings.expenseAccountId,
+            }
     updateSettings(resetPayload)
   }
 
