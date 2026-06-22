@@ -3,24 +3,28 @@
 import type { ProductMapping } from '@items-sync/types'
 import { createContext, type PropsWithChildren, useCallback, useState } from 'react'
 import type { SettingsFields } from '@/db/schema/settings.schema'
+import type { ClientXeroAccounts } from '@/lib/xero/accounts'
 import type { ClientXeroItem } from '@/lib/xero/types'
 
 type BaseSettingsContextType = SettingsFields & {
   productMappings: ProductMapping[]
 }
 
-type WithXeroItems = {
+type WithXeroData = {
   xeroItems: ClientXeroItem[]
+  xeroAccounts: ClientXeroAccounts
 }
 
 export type SettingsContextType = BaseSettingsContextType & {
   initialSettings: BaseSettingsContextType
-} & WithXeroItems
+} & WithXeroData
 
 export const SettingsContext = createContext<
   | (SettingsContextType & {
       setSettings: React.Dispatch<React.SetStateAction<SettingsContextType>>
-      updateSettings: (state: Partial<SettingsContextType>) => void
+      updateSettings: (
+        state: Omit<Partial<SettingsContextType>, 'xeroItems' | 'xeroAccounts'>,
+      ) => void
     })
   | null
 >(null)
@@ -38,8 +42,9 @@ export const SettingsContextProvider = ({
   expenseAccountId,
   productMappings,
   xeroItems,
+  xeroAccounts,
   children,
-}: BaseSettingsContextType & PropsWithChildren & WithXeroItems) => {
+}: BaseSettingsContextType & PropsWithChildren & WithXeroData) => {
   const [settings, setSettings] = useState<SettingsContextType>({
     syncProductsAutomatically,
     addAbsorbedFees,
@@ -53,6 +58,7 @@ export const SettingsContextProvider = ({
     bankAccountId,
     expenseAccountId,
     xeroItems,
+    xeroAccounts,
 
     initialSettings: {
       syncProductsAutomatically,
@@ -69,9 +75,12 @@ export const SettingsContextProvider = ({
     },
   })
 
-  const updateSettings = useCallback((state: Omit<Partial<SettingsContextType>, 'xeroItems'>) => {
-    setSettings((prev) => ({ ...prev, ...state }))
-  }, [])
+  const updateSettings = useCallback(
+    (state: Omit<Partial<SettingsContextType>, 'xeroItems' | 'xeroAccounts'>) => {
+      setSettings((prev) => ({ ...prev, ...state }))
+    },
+    [],
+  )
 
   return (
     <SettingsContext.Provider
