@@ -53,6 +53,9 @@ const TRIGGER_TONE_CLASS: Record<TriggerTone, string> = {
   muted: 'text-gray-500',
 }
 
+// Focus index for the default option. -1 = none, 0.. = accounts.
+const DEFAULT_OPTION_INDEX = -2
+
 export const AccountSelect = ({
   label,
   description,
@@ -90,6 +93,8 @@ export const AccountSelect = ({
 
   const filteredAccounts = accounts.filter((account) => {
     if (requiresPayments && account.enablePaymentsToAccount !== true) return false
+    // Shown in the header row; don't list it twice.
+    if (defaultUsable && account.accountId === defaultActiveAccount?.accountId) return false
     const query = searchQuery.toLowerCase()
     return (
       (account.name ?? '').toLowerCase().includes(query) ||
@@ -107,35 +112,49 @@ export const AccountSelect = ({
   }, [isOpen])
 
   useEffect(() => {
-    if (listRef.current && filteredAccounts.length > 0) {
-      const focusedElement = listRef.current.children[focusedIndex] as HTMLElement
-      if (focusedElement) focusedElement.scrollIntoView({ block: 'nearest' })
-    }
-  }, [focusedIndex, filteredAccounts.length])
+    // Only account rows live in the scrollable list.
+    if (focusedIndex < 0 || !listRef.current) return
+    const focusedElement = listRef.current.children[focusedIndex] as HTMLElement | undefined
+    focusedElement?.scrollIntoView({ block: 'nearest' })
+  }, [focusedIndex])
 
   const selectAccount = (account: ClientXeroAccount) => {
-    // Picking the default account = use default: keep the field null.
-    const value = account.accountId === defaultActiveAccount?.accountId ? null : account.accountId
-    updateSettings({ [field]: value } as Partial<SettingsContextType>)
+    updateSettings({ [field]: account.accountId } as Partial<SettingsContextType>)
     setOpenDropdownId(null)
   }
 
   // Clear to fall back to the region default.
-  const useDefault = () => {
+  const selectDefault = () => {
     updateSettings({ [field]: null } as Partial<SettingsContextType>)
     setOpenDropdownId(null)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    const lastIndex = filteredAccounts.length - 1
     if (e.key === 'ArrowDown') {
       e.preventDefault()
-      setFocusedIndex((prev) => (prev === -1 ? 0 : Math.min(prev + 1, filteredAccounts.length - 1)))
+      setFocusedIndex((prev) => {
+        // From the top, hit the default option first when available.
+        if (prev === -1) {
+          if (defaultUsable) return DEFAULT_OPTION_INDEX
+          return lastIndex >= 0 ? 0 : -1
+        }
+        if (prev === DEFAULT_OPTION_INDEX) return lastIndex >= 0 ? 0 : DEFAULT_OPTION_INDEX
+        return Math.min(prev + 1, lastIndex)
+      })
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
-      setFocusedIndex((prev) => (prev === -1 ? filteredAccounts.length - 1 : Math.max(prev - 1, 0)))
+      setFocusedIndex((prev) => {
+        if (prev === -1) return lastIndex >= 0 ? lastIndex : DEFAULT_OPTION_INDEX
+        if (prev === 0) return defaultUsable ? DEFAULT_OPTION_INDEX : 0
+        // Default option is the top; no wrap.
+        if (prev === DEFAULT_OPTION_INDEX) return DEFAULT_OPTION_INDEX
+        return Math.max(prev - 1, 0)
+      })
     } else if (e.key === 'Enter') {
       e.preventDefault()
-      if (filteredAccounts[focusedIndex]) selectAccount(filteredAccounts[focusedIndex])
+      if (focusedIndex === DEFAULT_OPTION_INDEX) selectDefault()
+      else if (filteredAccounts[focusedIndex]) selectAccount(filteredAccounts[focusedIndex])
     } else if (e.key === 'Escape') {
       e.preventDefault()
       setOpenDropdownId(null)
@@ -200,11 +219,15 @@ export const AccountSelect = ({
             </div>
 
             {defaultUsable && (
-              <div className="border-card-divider border-t-1 hover:bg-gray-100">
+              <div
+                className={`border-card-divider border-t-1 transition-colors hover:bg-gray-100 ${
+                  focusedIndex === DEFAULT_OPTION_INDEX ? 'bg-gray-100' : ''
+                }`}
+              >
                 <button
                   type="button"
                   className="h-full w-full cursor-pointer px-3 py-2 text-left text-sm text-text-primary"
-                  onClick={useDefault}
+                  onClick={selectDefault}
                 >
                   {`Use default account (${defaultDisplay})`}
                 </button>
