@@ -36,6 +36,7 @@ class SyncedInvoicesService extends AuthenticatedXeroService {
   async syncInvoiceToXero(data: InvoiceCreatedEvent): Promise<{
     copilotInvoiceId: string
     xeroInvoiceId: string | null
+    salesAccountId: string | null
     status: NonNullable<SyncedInvoiceCreatePayload['status']>
   }> {
     logger.info('SyncedInvoicesService#syncInvoiceToXero :: Syncing invoice to xero:', data.id)
@@ -90,6 +91,7 @@ class SyncedInvoicesService extends AuthenticatedXeroService {
       return {
         copilotInvoiceId: data.id,
         xeroInvoiceId: null,
+        salesAccountId: null,
         status: 'pending',
       }
     }
@@ -113,11 +115,13 @@ class SyncedInvoicesService extends AuthenticatedXeroService {
         invoice,
       )
       syncedInvoice = await this.xero.createInvoice(this.connection.tenantId, invoice)
-      syncedInvoiceRecord = await this.updateInvoiceRecord(
+      syncedInvoiceRecord = await this.updateInvoiceRecord({
         data,
         syncedInvoice,
-        syncedInvoice ? 'success' : 'failed',
-      )
+        status: syncedInvoice ? 'success' : 'failed',
+        // Only meaningful once the invoice (and its line items) exist in Xero.
+        salesAccountId: syncedInvoice ? salesAccount.accountID : undefined,
+      })
 
       // Add sync log
       const syncLogsService = new SyncLogsService(this.user, this.connection)
@@ -136,7 +140,7 @@ class SyncedInvoicesService extends AuthenticatedXeroService {
       })
     } catch (error: unknown) {
       console.error(JSON.stringify(error))
-      syncedInvoiceRecord = await this.updateInvoiceRecord(data, undefined, 'failed')
+      syncedInvoiceRecord = await this.updateInvoiceRecord({ data, status: 'failed' })
       throw new APIError('Failed to store synced invoice record', status.INTERNAL_SERVER_ERROR, {
         error,
         failedSyncLogPayload: {
@@ -264,7 +268,10 @@ class SyncedInvoicesService extends AuthenticatedXeroService {
 
     try {
       const syncedAccountsService = new SyncedAccountsService(this.user, this.connection)
-      const salesAccount = await syncedAccountsService.getOrCreateCopilotSalesAccount(regionConfig)
+      // Post against the same account the invoice's lines used; fall back to re-resolving.
+      const salesAccount =
+        (await syncedAccountsService.getSalesAccountById(invoiceRecord.salesAccountId)) ??
+        (await syncedAccountsService.getOrCreateCopilotSalesAccount(regionConfig))
 
       const payment = await this.xero.markInvoicePaid(
         this.connection.tenantId,
@@ -524,6 +531,7 @@ class SyncedInvoicesService extends AuthenticatedXeroService {
     const selectFields = getTableFields(syncedInvoices, [
       'copilotInvoiceId',
       'xeroInvoiceId',
+      'salesAccountId',
       'status',
     ])
 
@@ -566,11 +574,17 @@ class SyncedInvoicesService extends AuthenticatedXeroService {
     return invoice
   }
 
-  private async updateInvoiceRecord(
-    data: InvoiceCreatedEvent,
-    syncedInvoice?: Invoice,
-    status?: SyncedInvoiceCreatePayload['status'],
-  ) {
+  private async updateInvoiceRecord({
+    data,
+    syncedInvoice,
+    status,
+    salesAccountId,
+  }: {
+    data: InvoiceCreatedEvent
+    syncedInvoice?: Invoice
+    status?: SyncedInvoiceCreatePayload['status']
+    salesAccountId?: string | null
+  }) {
     logger.info(
       'SyncedInvoicesService#updateInvoiceRecord :: Updating invoice for',
       data.id,
@@ -583,6 +597,7 @@ class SyncedInvoicesService extends AuthenticatedXeroService {
         xeroInvoiceId: syncedInvoice?.invoiceID,
         portalId: this.user.portalId,
         tenantId: this.connection.tenantId,
+        salesAccountId,
         status,
       })
       .where(
@@ -595,6 +610,7 @@ class SyncedInvoicesService extends AuthenticatedXeroService {
       .returning({
         copilotInvoiceId: syncedInvoices.copilotInvoiceId,
         xeroInvoiceId: syncedInvoices.xeroInvoiceId,
+        salesAccountId: syncedInvoices.salesAccountId,
         status: syncedInvoices.status,
       })
     return invoice
