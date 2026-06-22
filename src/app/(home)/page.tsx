@@ -9,6 +9,7 @@ import { defaultSettings } from '@settings/constants/defaults'
 import { SettingsContextProvider } from '@settings/context/SettingsContext'
 import ProductMappingsService from '@settings/lib/ProductMappings.service'
 import SettingsService from '@settings/lib/Settings.service'
+import XeroAccountsService from '@settings/lib/XeroAccounts.service'
 import { SyncLogsService } from '@sync-logs/lib/SyncLogs.service'
 import type { CountryCode } from 'xero-node'
 import type { PageProps } from '@/app/(home)/types'
@@ -18,6 +19,7 @@ import { CopilotAPI } from '@/lib/copilot/CopilotAPI'
 import { serializeClientUser } from '@/lib/copilot/models/ClientUser.model'
 import User from '@/lib/copilot/models/User.model'
 import logger from '@/lib/logger'
+import type { ClientXeroAccounts } from '@/lib/xero/accounts'
 import { isSupportedCountry } from '@/lib/xero/region'
 import type { ClientXeroItem } from '@/lib/xero/types'
 import XeroAPI from '@/lib/xero/XeroAPI'
@@ -112,6 +114,20 @@ const getXeroItems = async (user: User, connection: XeroConnection): Promise<Cli
   return await productMappingsService.getClientXeroItems()
 }
 
+const getXeroAccounts = async (
+  user: User,
+  connection: XeroConnection,
+): Promise<ClientXeroAccounts> => {
+  if (!connection.tenantId || !connection.status)
+    return { income: [], bank: [], expense: [], archivedAccountCodes: [] }
+
+  const xeroAccountsService = new XeroAccountsService(
+    user,
+    connection as XeroConnectionWithTokenSet,
+  )
+  return await xeroAccountsService.getClientXeroAccounts()
+}
+
 const getLastSyncedAt = async (user: User, connection: XeroConnection): Promise<Date | null> => {
   if (!connection.tenantId || !connection.tokenSet) return null
 
@@ -146,28 +162,35 @@ const Home = async ({ searchParams }: PageProps) => {
     xeroAuthFailed = true
   }
 
-  const [settings, productMappings, xeroItems, lastSyncedAt, countryCode] = await Promise.all([
-    getSettings(user, connection),
-    withXeroErrorHandler(
-      getProductMappings(user, connection),
-      [],
-      'Error fetching product mappings',
-      onAuthError,
-    ),
-    withXeroErrorHandler(
-      getXeroItems(user, connection),
-      [],
-      'Error fetching xero items',
-      onAuthError,
-    ),
-    getLastSyncedAt(user, connection),
-    withXeroErrorHandler(
-      getCountryCode(connection),
-      null,
-      'Error fetching organisation country code',
-      onAuthError,
-    ),
-  ])
+  const [settings, productMappings, xeroItems, xeroAccounts, lastSyncedAt, countryCode] =
+    await Promise.all([
+      getSettings(user, connection),
+      withXeroErrorHandler(
+        getProductMappings(user, connection),
+        [],
+        'Error fetching product mappings',
+        onAuthError,
+      ),
+      withXeroErrorHandler(
+        getXeroItems(user, connection),
+        [],
+        'Error fetching xero items',
+        onAuthError,
+      ),
+      withXeroErrorHandler(
+        getXeroAccounts(user, connection),
+        { income: [], bank: [], expense: [], archivedAccountCodes: [] },
+        'Error fetching xero accounts',
+        onAuthError,
+      ),
+      getLastSyncedAt(user, connection),
+      withXeroErrorHandler(
+        getCountryCode(connection),
+        null,
+        'Error fetching organisation country code',
+        onAuthError,
+      ),
+    ])
 
   // Persist the resolved country code and gate sync to supported regions (US, AU)
   if (countryCode && connection.tenantId) {
@@ -215,6 +238,7 @@ const Home = async ({ searchParams }: PageProps) => {
         {...settings}
         productMappings={productMappings}
         xeroItems={xeroItems}
+        xeroAccounts={xeroAccounts}
       >
         <main className="min-h-[100vh] px-8 pt-6 pb-[54px] sm:px-[100px] lg:px-[220px]">
           <RealtimeXeroConnections user={clientUser} />
