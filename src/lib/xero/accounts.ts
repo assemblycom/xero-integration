@@ -1,4 +1,4 @@
-import { type Account, AccountType } from 'xero-node'
+import { Account, AccountType } from 'xero-node'
 
 // Account types Xero accepts for each role. We only treat a configured account as a
 // conflict when its type genuinely can't back that transaction (not for equivalent types).
@@ -30,23 +30,35 @@ export const categorizeAccount = (account: Account): AccountCategory | null => {
   return null
 }
 
-// Client-safe shape passed to the settings UI (consumed by the UI ticket).
+// Client-safe shape passed to the settings UI.
 export interface ClientXeroAccount {
   accountId: string
-  // null when Xero omits the name; the UI layer decides the display fallback
+  // null when Xero omits the name
   name: string | null
   code: string | null
   category: AccountCategory
+  // Accepts payments. null for bank accounts (no such flag).
+  enablePaymentsToAccount: boolean | null
 }
 
-// Returns null for accounts with no usable id or no category we map.
+// Null for inactive accounts, or those with no id/category we map.
 export const toClientXeroAccount = (account: Account): ClientXeroAccount | null => {
   const category = categorizeAccount(account)
-  if (!account.accountID || !category) return null
+  if (!account.accountID || !category || account.status !== Account.StatusEnum.ACTIVE) return null
   return {
     accountId: account.accountID,
     name: account.name ?? null,
     code: account.code ?? null,
     category,
+    enablePaymentsToAccount: account.enablePaymentsToAccount ?? null,
   }
+}
+
+// Accounts grouped by role for the settings UI.
+export interface ClientXeroAccounts {
+  income: ClientXeroAccount[]
+  bank: ClientXeroAccount[]
+  expense: ClientXeroAccount[]
+  // Codes held by archived accounts; a default on one can't be recreated.
+  archivedAccountCodes: string[]
 }
