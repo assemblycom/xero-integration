@@ -1,5 +1,6 @@
 'use client'
 
+import { AccountMapping } from '@settings/components/AccountMapping'
 import { ConfirmSettings } from '@settings/components/ConfirmSettings'
 import { InvoiceDetails } from '@settings/components/InvoiceDetails'
 import { ProductMapping } from '@settings/components/ProductMapping'
@@ -29,6 +30,14 @@ export const SettingsForm = () => {
           title="Invoice Details"
           content=<InvoiceDetails />
           extra=<ConfirmSettings mode="invoice" />
+        />
+
+        <Divider />
+
+        <Accordion
+          title="Account Mapping"
+          content=<AccountMapping />
+          extra=<ConfirmSettings mode="account" />
         />
       </form>
     </div>
