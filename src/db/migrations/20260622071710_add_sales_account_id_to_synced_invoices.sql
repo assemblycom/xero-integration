@@ -1,0 +1,1 @@
+ALTER TABLE "synced_invoices" ADD COLUMN "sales_account_id" uuid;

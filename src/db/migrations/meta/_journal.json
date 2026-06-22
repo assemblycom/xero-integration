@@ -106,6 +106,13 @@
       "when": 1781780635160,
       "tag": "20260618110355_add_account_ids_to_settings",
       "breakpoints": false
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1782112630157,
+      "tag": "20260622071710_add_sales_account_id_to_synced_invoices",
+      "breakpoints": false
     }
   ]
 }

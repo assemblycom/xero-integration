@@ -26,6 +26,10 @@ export const syncedInvoices = pgTable(
     // Invoice ID for synced Xero invoice
     xeroInvoiceId: uuid(),
 
+    // Xero accountID of the sales account this invoice's lines used; payment re-resolves it
+    // so it posts to the same account. Null for invoices synced before this column.
+    salesAccountId: uuid(),
+
     // Status for sync
     status: syncedInvoiceStatusEnum().default('pending').notNull(),
 
