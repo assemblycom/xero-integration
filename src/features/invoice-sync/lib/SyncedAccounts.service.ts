@@ -42,9 +42,9 @@ class SyncedAccountsService extends AuthenticatedXeroService {
     if (!selectedAccountId) return null
 
     const accounts = await this.getAccounts()
-    const selected = accounts.find((acc) => acc.accountID === selectedAccountId)
+    const selectedAccount = accounts.find((acc) => acc.accountID === selectedAccountId)
 
-    if (!selected) {
+    if (!selectedAccount) {
       logger.warn(
         `SyncedAccountsService#resolveSelectedAccount :: Selected ${label} account ${selectedAccountId} not found in Xero; falling back to region default`,
       )
@@ -52,21 +52,21 @@ class SyncedAccountsService extends AuthenticatedXeroService {
     }
 
     // Archived/deleted accounts fail at the Xero API, so fall back like a missing one.
-    if (selected.status !== Account.StatusEnum.ACTIVE) {
+    if (selectedAccount.status !== Account.StatusEnum.ACTIVE) {
       logger.warn(
-        `SyncedAccountsService#resolveSelectedAccount :: Selected ${label} account ${selectedAccountId} is ${selected.status} in Xero; falling back to region default`,
+        `SyncedAccountsService#resolveSelectedAccount :: Selected ${label} account ${selectedAccountId} is ${selectedAccount.status} in Xero; falling back to region default`,
       )
       return null
     }
 
-    if (selected.type && !allowedTypes.includes(selected.type)) {
+    if (selectedAccount.type && !allowedTypes.includes(selectedAccount.type)) {
       throw new APIError(
-        `Selected Xero ${label} account is a ${selected.type} account and cannot be used for the Assembly ${label} account`,
+        `Selected Xero ${label} account is a ${selectedAccount.type} account and cannot be used for the Assembly ${label} account`,
         status.CONFLICT,
       )
     }
 
-    return selected
+    return selectedAccount
   }
 
   // Resolves a user-selected account and readies it for use: enables payments when required
@@ -83,28 +83,32 @@ class SyncedAccountsService extends AuthenticatedXeroService {
     label: AssemblyAccountRole
     enablePayments: boolean
   }): Promise<Account | null> {
-    const selected = await this.resolveSelectedAccount(selectedAccountId, allowedTypes, label)
-    if (!selected) return null
+    const selectedAccount = await this.resolveSelectedAccount(
+      selectedAccountId,
+      allowedTypes,
+      label,
+    )
+    if (!selectedAccount) return null
 
     // Every consumer posts against the account's code, so a code-less selection is unusable.
-    if (!selected.code) {
+    if (!selectedAccount.code) {
       throw new APIError(
         `Selected Xero ${label} account has no account code and cannot be used`,
         status.CONFLICT,
       )
     }
 
-    if (enablePayments && !selected.enablePaymentsToAccount) {
+    if (enablePayments && !selectedAccount.enablePaymentsToAccount) {
       await this.xero.enablePaymentsForAccount(
         this.connection.tenantId,
-        z.string().parse(selected.accountID),
+        z.string().parse(selectedAccount.accountID),
       )
       // Keep the cached account coherent so a later resolve doesn't re-enable it.
-      selected.enablePaymentsToAccount = true
+      selectedAccount.enablePaymentsToAccount = true
     }
 
-    logger.info(`SyncedAccountsService :: Using selected ${label} account:`, selected)
-    return selected
+    logger.info(`SyncedAccountsService :: Using selected ${label} account:`, selectedAccount)
+    return selectedAccount
   }
 
   // An archived account still reserves its code, so it can't be reused or recreated.
@@ -142,13 +146,13 @@ class SyncedAccountsService extends AuthenticatedXeroService {
     )
 
     const settings = await this.getSettings()
-    const selected = await this.getSelectedAccount({
+    const selectedAccount = await this.getSelectedAccount({
       selectedAccountId: settings.incomeAccountId,
       allowedTypes: INCOME_ACCOUNT_TYPES,
       label: 'sales',
       enablePayments: true,
     })
-    if (selected) return selected
+    if (selectedAccount) return selectedAccount
 
     const { sales: code } = regionConfig.accountCodes
     const accounts = await this.getAccounts()
@@ -207,13 +211,13 @@ class SyncedAccountsService extends AuthenticatedXeroService {
     )
 
     const settings = await this.getSettings()
-    const selected = await this.getSelectedAccount({
+    const selectedAccount = await this.getSelectedAccount({
       selectedAccountId: settings.expenseAccountId,
       allowedTypes: EXPENSE_ACCOUNT_TYPES,
       label: 'expense',
       enablePayments: true,
     })
-    if (selected) return selected
+    if (selectedAccount) return selectedAccount
 
     const { merchantFees: code } = regionConfig.accountCodes
     const accounts = await this.getAccounts()
@@ -272,13 +276,13 @@ class SyncedAccountsService extends AuthenticatedXeroService {
     )
 
     const settings = await this.getSettings()
-    const selected = await this.getSelectedAccount({
+    const selectedAccount = await this.getSelectedAccount({
       selectedAccountId: settings.bankAccountId,
       allowedTypes: BANK_ACCOUNT_TYPES,
       label: 'bank',
       enablePayments: false,
     })
-    if (selected) return selected
+    if (selectedAccount) return selectedAccount
 
     const { bank: code } = regionConfig.accountCodes
     const accounts = await this.getAccounts()
