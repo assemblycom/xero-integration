@@ -1,12 +1,13 @@
 import SettingsService from '@settings/lib/Settings.service'
 import status from 'http-status'
-import { type Account, AccountType } from 'xero-node'
+import { Account, AccountType } from 'xero-node'
 import z from 'zod'
 import type { SettingsFields } from '@/db/schema/settings.schema'
 import APIError from '@/errors/APIError'
 import logger from '@/lib/logger'
 import AuthenticatedXeroService from '@/lib/xero/AuthenticatedXero.service'
 import {
+  type AssemblyAccountRole,
   BANK_ACCOUNT_TYPES,
   EXPENSE_ACCOUNT_TYPES,
   INCOME_ACCOUNT_TYPES,
@@ -36,7 +37,7 @@ class SyncedAccountsService extends AuthenticatedXeroService {
   private async resolveSelectedAccount(
     selectedAccountId: string | null | undefined,
     allowedTypes: AccountType[],
-    label: string,
+    label: AssemblyAccountRole,
   ): Promise<Account | null> {
     if (!selectedAccountId) return null
 
@@ -46,6 +47,14 @@ class SyncedAccountsService extends AuthenticatedXeroService {
     if (!selected) {
       logger.warn(
         `SyncedAccountsService#resolveSelectedAccount :: Selected ${label} account ${selectedAccountId} not found in Xero; falling back to region default`,
+      )
+      return null
+    }
+
+    // Archived/deleted accounts fail at the Xero API, so fall back like a missing one.
+    if (selected.status !== Account.StatusEnum.ACTIVE) {
+      logger.warn(
+        `SyncedAccountsService#resolveSelectedAccount :: Selected ${label} account ${selectedAccountId} is ${selected.status} in Xero; falling back to region default`,
       )
       return null
     }
@@ -63,12 +72,17 @@ class SyncedAccountsService extends AuthenticatedXeroService {
   // Resolves a user-selected account and readies it for use: enables payments when required
   // (sales/expense; bank accounts don't expose the flag). Returns null when there's no valid
   // selection, so the caller falls back to the region-default get-or-create path.
-  private async getSelectedAccount(
-    selectedAccountId: string | null | undefined,
-    allowedTypes: AccountType[],
-    label: string,
-    enablePayments: boolean,
-  ): Promise<Account | null> {
+  private async getSelectedAccount({
+    selectedAccountId,
+    allowedTypes,
+    label,
+    enablePayments,
+  }: {
+    selectedAccountId: string | null | undefined
+    allowedTypes: AccountType[]
+    label: AssemblyAccountRole
+    enablePayments: boolean
+  }): Promise<Account | null> {
     const selected = await this.resolveSelectedAccount(selectedAccountId, allowedTypes, label)
     if (!selected) return null
 
@@ -93,23 +107,53 @@ class SyncedAccountsService extends AuthenticatedXeroService {
     return selected
   }
 
+  // An archived account still reserves its code, so it can't be reused or recreated.
+  private assertActiveDefaultAccount({
+    existing,
+    code,
+    label,
+  }: {
+    existing: Account | undefined
+    code: string
+    label: AssemblyAccountRole
+  }): void {
+    if (existing && existing.status !== Account.StatusEnum.ACTIVE) {
+      throw new APIError(
+        `Xero account code ${code} is held by a ${existing.status} account in Xero and cannot be used for the Assembly ${label} account`,
+        status.CONFLICT,
+      )
+    }
+  }
+
+  // Resolve the invoice's stored sales account so the payment hits the same account. Null
+  // (→ region-default fallback) when missing/archived; throws on a type/code mismatch.
+  getSalesAccountById(selectedAccountId: string | null | undefined): Promise<Account | null> {
+    return this.getSelectedAccount({
+      selectedAccountId,
+      allowedTypes: INCOME_ACCOUNT_TYPES,
+      label: 'sales',
+      enablePayments: true,
+    })
+  }
+
   async getOrCreateCopilotSalesAccount(regionConfig: RegionConfig): Promise<Account> {
     logger.info(
       'SyncedAccountsService#getOrCreateCopilotSalesAccount :: Getting copilot sales account',
     )
 
     const settings = await this.getSettings()
-    const selected = await this.getSelectedAccount(
-      settings.incomeAccountId,
-      INCOME_ACCOUNT_TYPES,
-      'sales',
-      true,
-    )
+    const selected = await this.getSelectedAccount({
+      selectedAccountId: settings.incomeAccountId,
+      allowedTypes: INCOME_ACCOUNT_TYPES,
+      label: 'sales',
+      enablePayments: true,
+    })
     if (selected) return selected
 
     const { sales: code } = regionConfig.accountCodes
     const accounts = await this.getAccounts()
     const existing = accounts.find((acc) => acc.code === code)
+    this.assertActiveDefaultAccount({ existing, code, label: 'sales' })
 
     // CASE I: The code is already taken by an account whose type can't back a sales invoice
     // line. Don't hijack it, and don't attempt to create (codes must be unique) — fail clearly.
@@ -163,17 +207,18 @@ class SyncedAccountsService extends AuthenticatedXeroService {
     )
 
     const settings = await this.getSettings()
-    const selected = await this.getSelectedAccount(
-      settings.expenseAccountId,
-      EXPENSE_ACCOUNT_TYPES,
-      'expense',
-      true,
-    )
+    const selected = await this.getSelectedAccount({
+      selectedAccountId: settings.expenseAccountId,
+      allowedTypes: EXPENSE_ACCOUNT_TYPES,
+      label: 'expense',
+      enablePayments: true,
+    })
     if (selected) return selected
 
     const { merchantFees: code } = regionConfig.accountCodes
     const accounts = await this.getAccounts()
     const existing = accounts.find((acc) => acc.code === code)
+    this.assertActiveDefaultAccount({ existing, code, label: 'expense' })
 
     // CASE I: The code is already taken by an account whose type can't back an expense
     // (spend) line. Don't hijack it, and don't attempt to create — fail clearly.
@@ -227,23 +272,24 @@ class SyncedAccountsService extends AuthenticatedXeroService {
     )
 
     const settings = await this.getSettings()
-    const selected = await this.getSelectedAccount(
-      settings.bankAccountId,
-      BANK_ACCOUNT_TYPES,
-      'asset',
-      false,
-    )
+    const selected = await this.getSelectedAccount({
+      selectedAccountId: settings.bankAccountId,
+      allowedTypes: BANK_ACCOUNT_TYPES,
+      label: 'bank',
+      enablePayments: false,
+    })
     if (selected) return selected
 
     const { bank: code } = regionConfig.accountCodes
     const accounts = await this.getAccounts()
     const existing = accounts.find((acc) => acc.code === code)
+    this.assertActiveDefaultAccount({ existing, code, label: 'bank' })
 
     // The code is already taken by a non-bank account — fail clearly rather than emit an
     // opaque duplicate-code error on create.
     if (existing && existing.type !== AccountType.BANK) {
       throw new APIError(
-        `Xero account code ${code} is already used by a ${existing.type} account and cannot be used for the Assembly asset account`,
+        `Xero account code ${code} is already used by a ${existing.type} account and cannot be used for the Assembly bank account`,
         status.CONFLICT,
       )
     }
