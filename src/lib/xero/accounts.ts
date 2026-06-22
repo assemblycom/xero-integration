@@ -18,6 +18,9 @@ export const BANK_ACCOUNT_TYPES: AccountType[] = [AccountType.BANK]
 
 export type AccountCategory = 'income' | 'expense' | 'bank'
 
+// Role noun used in operator-facing account messages (the income role reads as "sales").
+export type AssemblyAccountRole = 'sales' | 'expense' | 'bank'
+
 // Maps a Xero account to the role it can fill, or null if it fills none we care about.
 export const categorizeAccount = (account: Account): AccountCategory | null => {
   if (!account.type) return null
