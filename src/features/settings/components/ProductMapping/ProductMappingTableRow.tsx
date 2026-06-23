@@ -1,9 +1,8 @@
 import { useAuthContext } from '@auth/hooks/useAuth'
 import type { ProductMapping } from '@items-sync/types'
-import { useDropdown } from '@settings/hooks/useDropdown'
 import { useSettingsContext } from '@settings/hooks/useSettings'
 import { Icon } from 'copilot-design-system'
-import { useEffect, useRef, useState } from 'react'
+import { SearchableSelectMenu } from '@/components/ui/SearchableSelectMenu'
 import { formatCurrencyForRegion } from '@/lib/xero/region'
 import type { ClientXeroItem } from '@/lib/xero/types'
 
@@ -18,82 +17,27 @@ export const ProductMappingTableRow = ({
   openDropdownId,
   setOpenDropdownId,
 }: ProductMappingTableRowProps) => {
-  const { dropdownRef } = useDropdown({ setOpenDropdownId })
   const { productMappings, updateSettings, xeroItems, dropdownXeroItems } = useSettingsContext()
   const { countryCode } = useAuthContext()
 
   const xeroItem = xeroItems.find((i) => i.itemID === item.item?.itemID)
-
-  const [searchQuery, setSearchQuery] = useState('')
-  const [focusedIndex, setFocusedIndex] = useState(-1)
-  const listRef = useRef<HTMLDivElement>(null)
-
-  const filteredItems = dropdownXeroItems.filter((item) =>
-    item.name.toLowerCase().includes(searchQuery.toLowerCase()),
-  )
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: To set focused index
-  useEffect(() => {
-    setFocusedIndex(-1)
-  }, [searchQuery])
-
-  useEffect(() => {
-    if (openDropdownId === null) {
-      setSearchQuery('')
-    }
-  }, [openDropdownId])
-
-  useEffect(() => {
-    if (listRef.current && filteredItems.length > 0) {
-      const focusedElement = listRef.current.children[focusedIndex] as HTMLElement
-      if (focusedElement) {
-        focusedElement.scrollIntoView({ block: 'nearest' })
-      }
-    }
-  }, [focusedIndex, filteredItems.length])
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      setFocusedIndex((prev) => (prev === -1 ? 0 : Math.min(prev + 1, filteredItems.length - 1)))
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      setFocusedIndex((prev) => (prev === -1 ? filteredItems.length - 1 : Math.max(prev - 1, 0)))
-    } else if (e.key === 'Enter') {
-      e.preventDefault()
-      if (filteredItems[focusedIndex]) {
-        handleSelectMapping(filteredItems[focusedIndex])
-      }
-    } else if (e.key === 'Escape') {
-      e.preventDefault()
-      setOpenDropdownId(null)
-    }
-  }
+  const isOpen = item.product.id === openDropdownId
 
   const excludeItemFromMapping = () => {
-    const newProductMappings = productMappings.map((m) => {
-      if (m.product.id === item.product.id) {
-        return { ...m, item: null }
-      }
-      return m
-    })
+    const newProductMappings = productMappings.map((mapping) =>
+      mapping.product.id === item.product.id ? { ...mapping, item: null } : mapping,
+    )
     updateSettings({ productMappings: newProductMappings })
-    setOpenDropdownId(null)
   }
 
   const handleSelectMapping = (newItem: ClientXeroItem) => {
     const { itemID, name, code } = newItem
-    const newProductMappings = productMappings.map((mapping) => {
-      if (mapping.product.id === item.product.id) {
-        return {
-          ...mapping,
-          item: { itemID, name, code },
-        }
-      }
-      return mapping
-    })
+    const newProductMappings = productMappings.map((mapping) =>
+      mapping.product.id === item.product.id
+        ? { ...mapping, item: { itemID, name, code } }
+        : mapping,
+    )
     updateSettings({ productMappings: newProductMappings })
-    setOpenDropdownId(null)
   }
 
   const renderCurrency = (amount: number) => formatCurrencyForRegion(amount, countryCode)
@@ -139,65 +83,34 @@ export const ProductMappingTableRow = ({
             )}
           </div>
           <div className="col-span-1 my-auto ml-auto">
-            <Icon icon="ChevronDown" width={16} height={16} className={`text-gray-500`} />
+            <Icon icon="ChevronDown" width={16} height={16} className="text-gray-500" />
           </div>
         </button>
 
-        {/* Dropdown */}
-        {item.product.id === openDropdownId && (
-          <div
-            ref={dropdownRef}
-            className="items-dropdown !shadow-[0_6px_20px_0_rgba(0,0,0,0.07)] absolute top-full right-[-1px] left-[-145px] z-100 mt-[-4px] rounded-sm border border-dropdown-border bg-white md:left-[-1px] md:min-w-[320px]"
-          >
-            <div className="px-3 py-2">
-              <input
-                type="text"
-                placeholder="Search"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={handleKeyDown}
-                // biome-ignore lint/a11y/noAutofocus: Can't be bothered to change this atm
-                autoFocus
-                className="w-full text-sm focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500"
-              />
-            </div>
-
-            <div className="border-card-divider border-t-1 border-b-1 hover:bg-gray-100">
-              <button
-                type="button"
-                className="h-full w-full cursor-pointer px-3 py-2 text-left text-sm text-text-primary"
-                onClick={excludeItemFromMapping}
-              >
-                Exclude from mapping
-              </button>
-            </div>
-
-            {/* Dropdown options */}
-            <div className="max-h-56 overflow-y-auto" ref={listRef}>
-              {filteredItems?.length
-                ? Object.values(filteredItems).map((item, index) => (
-                    <button
-                      type="button"
-                      key={item.itemID}
-                      onClick={() => handleSelectMapping(item)}
-                      className={`mapping-option-btn flex w-full cursor-pointer items-center justify-between px-3 py-1.5 text-left text-sm transition-colors hover:bg-gray-100 ${
-                        index === focusedIndex ? 'bg-gray-100' : ''
-                      }`}
-                    >
-                      <span className="line-clamp-1 break-all text-text-primary lg:break-normal">
-                        {item.name}
-                      </span>
-                      <span className="ps-2 text-body-micro text-gray-500 leading-body-micro">
-                        {renderCurrency(item.amount)}
-                      </span>
-                    </button>
-                  ))
-                : ''}
-              {filteredItems.length === 0 && (
-                <div className="px-3 py-2 text-gray-500 text-sm">No items found</div>
-              )}
-            </div>
-          </div>
+        {isOpen && (
+          <SearchableSelectMenu
+            onClose={() => setOpenDropdownId(null)}
+            className="!shadow-[0_6px_20px_0_rgba(0,0,0,0.07)] absolute top-full right-[-1px] left-[-145px] z-100 mt-[-4px] rounded-sm border border-dropdown-border bg-white md:left-[-1px] md:min-w-[320px]"
+            options={dropdownXeroItems}
+            getOptionKey={(xero) => xero.itemID}
+            getSearchValues={(xero) => [xero.name]}
+            onSelect={handleSelectMapping}
+            emptyText="No items found"
+            action={{
+              render: () => 'Exclude from mapping',
+              onSelect: excludeItemFromMapping,
+            }}
+            renderOption={(xero) => (
+              <>
+                <span className="line-clamp-1 break-all text-text-primary lg:break-normal">
+                  {xero.name}
+                </span>
+                <span className="ps-2 text-body-micro text-gray-500 leading-body-micro">
+                  {renderCurrency(xero.amount)}
+                </span>
+              </>
+            )}
+          />
         )}
       </td>
     </tr>
