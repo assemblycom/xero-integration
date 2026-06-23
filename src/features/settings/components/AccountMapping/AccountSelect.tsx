@@ -52,6 +52,23 @@ const TRIGGER_TONE_CLASS: Record<TriggerTone, string> = {
   muted: 'text-gray-500',
 }
 
+// Trigger label + tone, in priority order.
+const getTrigger = (
+  selectedAccount: ClientXeroAccount | undefined,
+  hasStaleSelection: boolean,
+  defaultIsArchived: boolean,
+  defaultUsable: boolean,
+  defaultDisplay: string,
+  fieldLabel: string,
+): { label: string; tone: TriggerTone } => {
+  if (selectedAccount) return { label: accountLabel(selectedAccount), tone: 'primary' }
+  if (hasStaleSelection) return { label: 'Selected account unavailable', tone: 'danger' }
+  if (defaultIsArchived)
+    return { label: 'Default account unavailable — please select an account', tone: 'danger' }
+  if (defaultUsable) return { label: `Use default account (${defaultDisplay})`, tone: 'muted' }
+  return { label: `Please select ${fieldLabel.toLowerCase()}`, tone: 'muted' }
+}
+
 export const AccountSelect = ({
   label,
   description,
@@ -89,25 +106,14 @@ export const AccountSelect = ({
     return true
   })
 
-  // Trigger label + tone, in priority order.
-  let triggerLabel: string
-  let triggerTone: TriggerTone
-  if (selectedAccount) {
-    triggerLabel = accountLabel(selectedAccount)
-    triggerTone = 'primary'
-  } else if (hasStaleSelection) {
-    triggerLabel = 'Selected account unavailable'
-    triggerTone = 'danger'
-  } else if (defaultIsArchived) {
-    triggerLabel = 'Default account unavailable — please select an account'
-    triggerTone = 'danger'
-  } else if (defaultUsable) {
-    triggerLabel = `Use default account (${defaultDisplay})`
-    triggerTone = 'muted'
-  } else {
-    triggerLabel = `Please select ${label.toLowerCase()}`
-    triggerTone = 'muted'
-  }
+  const { label: triggerLabel, tone: triggerTone } = getTrigger(
+    selectedAccount,
+    hasStaleSelection,
+    defaultIsArchived,
+    defaultUsable,
+    defaultDisplay,
+    label,
+  )
 
   return (
     <div className="mb-6">
