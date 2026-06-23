@@ -134,7 +134,7 @@ export const AccountSelect = ({
             className="!shadow-[0_6px_20px_0_rgba(0,0,0,0.07)] absolute top-full right-0 left-0 z-100 mt-[-2px] rounded-sm border border-dropdown-border bg-white"
             options={filteredAccounts}
             getOptionKey={(account) => account.accountId}
-            getSearchText={(account) => `${account.name ?? ''} ${account.code ?? ''}`}
+            getSearchValues={(account) => [account.name ?? '', account.code ?? '']}
             onSelect={(account) =>
               updateSettings({ [field]: account.accountId } as Partial<SettingsContextType>)
             }
