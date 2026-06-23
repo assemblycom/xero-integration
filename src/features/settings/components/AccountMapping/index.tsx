@@ -20,7 +20,7 @@ export const AccountMapping = () => {
 
   // An archived default code can't be recreated, so force an explicit selection.
   const isDefaultArchived = (defaultCode: string | null): boolean =>
-    defaultCode !== null && xeroAccounts.archivedAccountCodes.includes(defaultCode)
+    !!defaultCode && xeroAccounts.archivedAccountCodes.includes(defaultCode)
 
   const rows: {
     label: string
