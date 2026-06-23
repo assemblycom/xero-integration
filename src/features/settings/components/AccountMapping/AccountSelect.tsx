@@ -1,8 +1,7 @@
 import type { SettingsContextType } from '@settings/context/SettingsContext'
-import { useDropdown } from '@settings/hooks/useDropdown'
 import { useSettingsContext } from '@settings/hooks/useSettings'
 import { Icon } from 'copilot-design-system'
-import { useEffect, useRef, useState } from 'react'
+import { SearchableSelectMenu } from '@/components/ui/SearchableSelectMenu'
 import type { ClientXeroAccount } from '@/lib/xero/accounts'
 
 export type AccountFieldKey = 'incomeAccountId' | 'bankAccountId' | 'expenseAccountId'
@@ -53,9 +52,6 @@ const TRIGGER_TONE_CLASS: Record<TriggerTone, string> = {
   muted: 'text-gray-500',
 }
 
-// Focus index for the default option. -1 = none, 0.. = accounts.
-const DEFAULT_OPTION_INDEX = -2
-
 export const AccountSelect = ({
   label,
   description,
@@ -68,7 +64,6 @@ export const AccountSelect = ({
   openDropdownId,
   setOpenDropdownId,
 }: AccountSelectProps) => {
-  const { dropdownRef } = useDropdown({ setOpenDropdownId })
   const { updateSettings } = useSettingsContext()
 
   // Only active accounts are listed, so a missing/archived saved id won't match.
@@ -79,12 +74,8 @@ export const AccountSelect = ({
   const defaultActiveAccount = defaultCode
     ? accounts.find((account) => account.code === defaultCode)
     : undefined
-  const defaultUsable = defaultCode !== null && !defaultIsArchived
+  const defaultUsable = !!defaultCode && !defaultIsArchived
   const defaultDisplay = formatDefaultDisplay(defaultActiveAccount, defaultName, defaultCode)
-
-  const [searchQuery, setSearchQuery] = useState('')
-  const [focusedIndex, setFocusedIndex] = useState(-1)
-  const listRef = useRef<HTMLDivElement>(null)
 
   const isOpen = openDropdownId === field
 
@@ -95,71 +86,8 @@ export const AccountSelect = ({
     if (requiresPayments && account.enablePaymentsToAccount !== true) return false
     // Shown in the header row; don't list it twice.
     if (defaultUsable && account.accountId === defaultActiveAccount?.accountId) return false
-    const query = searchQuery.toLowerCase()
-    return (
-      (account.name ?? '').toLowerCase().includes(query) ||
-      (account.code ?? '').toLowerCase().includes(query)
-    )
+    return true
   })
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: reset focus when query changes
-  useEffect(() => {
-    setFocusedIndex(-1)
-  }, [searchQuery])
-
-  useEffect(() => {
-    if (!isOpen) setSearchQuery('')
-  }, [isOpen])
-
-  useEffect(() => {
-    // Only account rows live in the scrollable list.
-    if (focusedIndex < 0 || !listRef.current) return
-    const focusedElement = listRef.current.children[focusedIndex] as HTMLElement | undefined
-    focusedElement?.scrollIntoView({ block: 'nearest' })
-  }, [focusedIndex])
-
-  const selectAccount = (account: ClientXeroAccount) => {
-    updateSettings({ [field]: account.accountId } as Partial<SettingsContextType>)
-    setOpenDropdownId(null)
-  }
-
-  // Clear to fall back to the region default.
-  const selectDefault = () => {
-    updateSettings({ [field]: null } as Partial<SettingsContextType>)
-    setOpenDropdownId(null)
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    const lastIndex = filteredAccounts.length - 1
-    if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      setFocusedIndex((prev) => {
-        // From the top, hit the default option first when available.
-        if (prev === -1) {
-          if (defaultUsable) return DEFAULT_OPTION_INDEX
-          return lastIndex >= 0 ? 0 : -1
-        }
-        if (prev === DEFAULT_OPTION_INDEX) return lastIndex >= 0 ? 0 : DEFAULT_OPTION_INDEX
-        return Math.min(prev + 1, lastIndex)
-      })
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      setFocusedIndex((prev) => {
-        if (prev === -1) return lastIndex >= 0 ? lastIndex : DEFAULT_OPTION_INDEX
-        if (prev === 0) return defaultUsable ? DEFAULT_OPTION_INDEX : 0
-        // Default option is the top; no wrap.
-        if (prev === DEFAULT_OPTION_INDEX) return DEFAULT_OPTION_INDEX
-        return Math.max(prev - 1, 0)
-      })
-    } else if (e.key === 'Enter') {
-      e.preventDefault()
-      if (focusedIndex === DEFAULT_OPTION_INDEX) selectDefault()
-      else if (filteredAccounts[focusedIndex]) selectAccount(filteredAccounts[focusedIndex])
-    } else if (e.key === 'Escape') {
-      e.preventDefault()
-      setOpenDropdownId(null)
-    }
-  }
 
   // Trigger label + tone, in priority order.
   let triggerLabel: string
@@ -201,64 +129,38 @@ export const AccountSelect = ({
         </button>
 
         {isOpen && (
-          <div
-            ref={dropdownRef}
-            className="account-dropdown !shadow-[0_6px_20px_0_rgba(0,0,0,0.07)] absolute top-full right-0 left-0 z-100 mt-[-2px] rounded-sm border border-dropdown-border bg-white"
-          >
-            <div className="px-3 py-2">
-              <input
-                type="text"
-                placeholder="Search"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={handleKeyDown}
-                // biome-ignore lint/a11y/noAutofocus: focus search on open, matches product mapping
-                autoFocus
-                className="w-full text-sm focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500"
-              />
-            </div>
-
-            {defaultUsable && (
-              <div
-                className={`border-card-divider border-t-1 transition-colors hover:bg-gray-100 ${
-                  focusedIndex === DEFAULT_OPTION_INDEX ? 'bg-gray-100' : ''
-                }`}
-              >
-                <button
-                  type="button"
-                  className="h-full w-full cursor-pointer px-3 py-2 text-left text-sm text-text-primary"
-                  onClick={selectDefault}
-                >
-                  {`Use default account (${defaultDisplay})`}
-                </button>
-              </div>
-            )}
-
-            <div className="max-h-56 overflow-y-auto border-card-divider border-t-1" ref={listRef}>
-              {filteredAccounts.map((account, index) => (
-                <button
-                  type="button"
-                  key={account.accountId}
-                  onClick={() => selectAccount(account)}
-                  className={`account-option-btn flex w-full cursor-pointer items-center justify-between px-3 py-1.5 text-left text-sm transition-colors hover:bg-gray-100 ${
-                    index === focusedIndex ? 'bg-gray-100' : ''
-                  }`}
-                >
-                  <span className="line-clamp-1 break-all text-text-primary lg:break-normal">
-                    {account.name ?? 'Unnamed account'}
+          <SearchableSelectMenu
+            onClose={() => setOpenDropdownId(null)}
+            className="!shadow-[0_6px_20px_0_rgba(0,0,0,0.07)] absolute top-full right-0 left-0 z-100 mt-[-2px] rounded-sm border border-dropdown-border bg-white"
+            options={filteredAccounts}
+            getOptionKey={(account) => account.accountId}
+            getSearchText={(account) => `${account.name ?? ''} ${account.code ?? ''}`}
+            onSelect={(account) =>
+              updateSettings({ [field]: account.accountId } as Partial<SettingsContextType>)
+            }
+            emptyText="No accounts found"
+            action={
+              defaultUsable
+                ? {
+                    render: () => `Use default account (${defaultDisplay})`,
+                    onSelect: () =>
+                      updateSettings({ [field]: null } as Partial<SettingsContextType>),
+                  }
+                : undefined
+            }
+            renderOption={(account) => (
+              <>
+                <span className="line-clamp-1 break-all text-text-primary lg:break-normal">
+                  {account.name ?? 'Unnamed account'}
+                </span>
+                {account.code && (
+                  <span className="ps-2 text-body-micro text-gray-500 leading-body-micro">
+                    {account.code}
                   </span>
-                  {account.code && (
-                    <span className="ps-2 text-body-micro text-gray-500 leading-body-micro">
-                      {account.code}
-                    </span>
-                  )}
-                </button>
-              ))}
-              {filteredAccounts.length === 0 && (
-                <div className="px-3 py-2 text-gray-500 text-sm">No accounts found</div>
-              )}
-            </div>
-          </div>
+                )}
+              </>
+            )}
+          />
         )}
       </div>
     </div>
