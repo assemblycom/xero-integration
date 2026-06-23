@@ -118,7 +118,7 @@ const getXeroAccounts = async (
   user: User,
   connection: XeroConnection,
 ): Promise<ClientXeroAccounts> => {
-  if (!connection.tenantId || !connection.status)
+  if (!connection.tenantId || !connection.status || !connection.tokenSet)
     return { income: [], bank: [], expense: [], archivedAccountCodes: [] }
 
   const xeroAccountsService = new XeroAccountsService(
@@ -144,19 +144,7 @@ const getCountryCode = async (connection: XeroConnection): Promise<CountryCode |
   return countryCode || null
 }
 
-const Home = async ({ searchParams }: PageProps) => {
-  const sp = await searchParams
-  const user = await User.authenticate(sp.token)
-
-  const authService = new AuthService(user)
-
-  const copilot = new CopilotAPI(user.token)
-  const [rawConnection, workspace] = await Promise.all([
-    authService.authorizeXeroForCopilotWorkspace(true),
-    copilot.getWorkspace(),
-  ])
-  const connection = await ensureValidConnection(user, rawConnection)
-
+const getPageData = async (user: User, connection: XeroConnection) => {
   let xeroAuthFailed = false
   const onAuthError = () => {
     xeroAuthFailed = true
@@ -191,6 +179,40 @@ const Home = async ({ searchParams }: PageProps) => {
         onAuthError,
       ),
     ])
+
+  return {
+    settings,
+    productMappings,
+    xeroItems,
+    xeroAccounts,
+    lastSyncedAt,
+    countryCode,
+    xeroAuthFailed,
+  }
+}
+
+const Home = async ({ searchParams }: PageProps) => {
+  const sp = await searchParams
+  const user = await User.authenticate(sp.token)
+
+  const authService = new AuthService(user)
+
+  const copilot = new CopilotAPI(user.token)
+  const [rawConnection, workspace] = await Promise.all([
+    authService.authorizeXeroForCopilotWorkspace(true),
+    copilot.getWorkspace(),
+  ])
+  const connection = await ensureValidConnection(user, rawConnection)
+
+  const {
+    settings,
+    productMappings,
+    xeroItems,
+    xeroAccounts,
+    lastSyncedAt,
+    countryCode,
+    xeroAuthFailed,
+  } = await getPageData(user, connection)
 
   // Persist the resolved country code and gate sync to supported regions (US, AU)
   if (countryCode && connection.tenantId) {
