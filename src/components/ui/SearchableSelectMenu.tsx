@@ -1,5 +1,5 @@
 import { useDropdown } from '@settings/hooks/useDropdown'
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 
 // Focus index for the optional action row. -1 = none, 0.. = options.
 const ACTION_INDEX = -2
@@ -10,7 +10,8 @@ interface SearchableSelectMenuProps<T> {
   searchPlaceholder?: string
   options: T[]
   getOptionKey: (option: T) => string
-  getSearchText: (option: T) => string
+  // Each value is matched independently against the query (OR semantics).
+  getSearchValues: (option: T) => string[]
   renderOption: (option: T) => ReactNode
   onSelect: (option: T) => void
   emptyText: string
@@ -26,19 +27,26 @@ export const SearchableSelectMenu = <T,>({
   searchPlaceholder = 'Search',
   options,
   getOptionKey,
-  getSearchText,
+  getSearchValues,
   renderOption,
   onSelect,
   emptyText,
   action,
 }: SearchableSelectMenuProps<T>) => {
-  const { dropdownRef } = useDropdown({ setOpenDropdownId: onClose })
+  // Keep a stable close reference so useDropdown doesn't re-bind its listener each render.
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+  const close = useCallback(() => onCloseRef.current(), [])
+
+  const { dropdownRef } = useDropdown({ setOpenDropdownId: close })
   const [searchQuery, setSearchQuery] = useState('')
   const [focusedIndex, setFocusedIndex] = useState(-1)
   const listRef = useRef<HTMLDivElement>(null)
 
   const query = searchQuery.toLowerCase()
-  const filtered = options.filter((option) => getSearchText(option).toLowerCase().includes(query))
+  const filtered = options.filter((option) =>
+    getSearchValues(option).some((value) => value.toLowerCase().includes(query)),
+  )
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset focus when query changes
   useEffect(() => {
@@ -54,12 +62,12 @@ export const SearchableSelectMenu = <T,>({
 
   const selectOption = (option: T) => {
     onSelect(option)
-    onClose()
+    close()
   }
 
   const selectAction = () => {
     action?.onSelect()
-    onClose()
+    close()
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -90,7 +98,7 @@ export const SearchableSelectMenu = <T,>({
       else if (filtered[focusedIndex]) selectOption(filtered[focusedIndex])
     } else if (e.key === 'Escape') {
       e.preventDefault()
-      onClose()
+      close()
     }
   }
 
