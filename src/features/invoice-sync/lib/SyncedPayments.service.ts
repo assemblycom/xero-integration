@@ -42,18 +42,15 @@ class SyncedPaymentsService extends AuthenticatedXeroService {
   }
 
   async getExpenseByCopilotPaymentId(copilotPaymentId: string) {
-    const [result] = await this.db
-      .select()
-      .from(syncedPayments)
-      .where(
+    return await this.db.query.syncedPayments.findFirst({
+      where: (t, { and, eq }) =>
         and(
-          eq(syncedPayments.portalId, this.user.portalId),
-          eq(syncedPayments.tenantId, this.connection.tenantId),
-          eq(syncedPayments.copilotPaymentId, copilotPaymentId),
-          eq(syncedPayments.type, PaymentUserType.EXPENSE),
+          eq(t.portalId, this.user.portalId),
+          eq(t.tenantId, this.connection.tenantId),
+          eq(t.copilotPaymentId, copilotPaymentId),
+          eq(t.type, PaymentUserType.EXPENSE),
         ),
-      )
-    return result
+    })
   }
 
   async createPaymentRecord(

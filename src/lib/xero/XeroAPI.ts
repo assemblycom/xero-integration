@@ -353,15 +353,13 @@ class XeroAPI {
         typeof tx.total === 'number' &&
         Math.round(tx.total * 100) === amountInCents,
     )
-    if (candidateTxns.length > 1) {
-      // Ambiguous: same-amount expenses on one invoice. Skip adopting and
-      // flag for manual cleanup of the legacy duplicates.
-      logger.warn(
-        'XeroAPI#findLegacyExpenseByInvoice :: Multiple legacy expenses match, not adopting',
-        { tenantId, invoiceReference, count: candidateTxns.length },
-      )
-      return undefined
-    }
+    if (candidateTxns.length > 1)
+      logger.warn('XeroAPI#findLegacyExpenseByInvoice :: Multiple legacy expenses match', {
+        tenantId,
+        invoiceReference,
+        count: candidateTxns.length,
+      })
+
     return candidateTxns[0]
   }
 
