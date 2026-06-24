@@ -171,8 +171,10 @@ class SyncedPaymentsService extends AuthenticatedXeroService {
       // Another delivery already recorded this expense, so skip the sync log.
       if (!inserted.length) {
         logger.info(
-          'SyncedPaymentsService#createPlatformExpensePayment :: Concurrent duplicate detected on insert, skipping sync log',
+          'SyncedPaymentsService#createPlatformExpensePayment :: Concurrent duplicate detected on insert, skipping sync log. CopilotPaymentId: ',
           data.id,
+          'xeroPaymentId: ',
+          transaction.bankTransactionID,
         )
         return transaction
       }
