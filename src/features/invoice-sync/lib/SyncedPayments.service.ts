@@ -82,15 +82,6 @@ class SyncedPaymentsService extends AuthenticatedXeroService {
   async createPlatformExpensePayment(
     data: PaymentSucceededEvent,
   ): Promise<BankTransaction | undefined> {
-    const existingExpense = await this.getExpenseByCopilotPaymentId(data.id)
-    if (existingExpense) {
-      logger.info(
-        'SyncedPaymentsService#createPlatformExpensePayment :: Expense already synced for payment, skipping replay',
-        data.id,
-      )
-      return undefined
-    }
-
     const regionService = new RegionService(this.user, this.connection)
     const regionConfig = await regionService.getRegionConfig()
     if (!regionConfig) {
@@ -102,6 +93,15 @@ class SyncedPaymentsService extends AuthenticatedXeroService {
     }
 
     try {
+      const existingExpense = await this.getExpenseByCopilotPaymentId(data.id)
+      if (existingExpense) {
+        logger.info(
+          'SyncedPaymentsService#createPlatformExpensePayment :: Expense already synced for payment, skipping replay',
+          data.id,
+        )
+        return undefined
+      }
+
       logger.info(
         'SyncedPaymentsService#createPlatformExpensePayment :: Creating platform expense payment for',
       )
