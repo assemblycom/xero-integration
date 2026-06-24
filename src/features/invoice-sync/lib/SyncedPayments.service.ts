@@ -42,7 +42,7 @@ class SyncedPaymentsService extends AuthenticatedXeroService {
   }
 
   async getExpenseByCopilotPaymentId(copilotPaymentId: string) {
-    const results = await this.db
+    const [result] = await this.db
       .select()
       .from(syncedPayments)
       .where(
@@ -53,7 +53,7 @@ class SyncedPaymentsService extends AuthenticatedXeroService {
           eq(syncedPayments.type, PaymentUserType.EXPENSE),
         ),
       )
-    return results.length ? results[0] : undefined
+    return result
   }
 
   async createPaymentRecord(
@@ -66,7 +66,7 @@ class SyncedPaymentsService extends AuthenticatedXeroService {
     logger.info('SyncedPaymentsService#createPayment :: Creating payment for payload', data)
 
     // onConflictDoNothing guards the race: a parallel insert no-ops to [].
-    const inserted = await this.db
+    return await this.db
       .insert(syncedPayments)
       .values({
         portalId: this.user.portalId,
@@ -76,7 +76,6 @@ class SyncedPaymentsService extends AuthenticatedXeroService {
       })
       .onConflictDoNothing()
       .returning()
-    return inserted
   }
 
   async createPlatformExpensePayment(
