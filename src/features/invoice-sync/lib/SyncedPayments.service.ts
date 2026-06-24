@@ -41,6 +41,21 @@ class SyncedPaymentsService extends AuthenticatedXeroService {
     return results.length ? results[0] : undefined
   }
 
+  async getExpenseByCopilotPaymentId(copilotPaymentId: string) {
+    const results = await this.db
+      .select()
+      .from(syncedPayments)
+      .where(
+        and(
+          eq(syncedPayments.portalId, this.user.portalId),
+          eq(syncedPayments.tenantId, this.connection.tenantId),
+          eq(syncedPayments.copilotPaymentId, copilotPaymentId),
+          eq(syncedPayments.type, PaymentUserType.EXPENSE),
+        ),
+      )
+    return results.length ? results[0] : undefined
+  }
+
   async createPaymentRecord(
     data: Pick<
       SyncedPayment,
@@ -50,15 +65,32 @@ class SyncedPaymentsService extends AuthenticatedXeroService {
   ) {
     logger.info('SyncedPaymentsService#createPayment :: Creating payment for payload', data)
 
-    await this.db.insert(syncedPayments).values({
-      portalId: this.user.portalId,
-      tenantId: this.connection.tenantId,
-      ...data,
-      type,
-    })
+    // onConflictDoNothing guards the race: a parallel insert no-ops to [].
+    const inserted = await this.db
+      .insert(syncedPayments)
+      .values({
+        portalId: this.user.portalId,
+        tenantId: this.connection.tenantId,
+        ...data,
+        type,
+      })
+      .onConflictDoNothing()
+      .returning()
+    return inserted
   }
 
-  async createPlatformExpensePayment(data: PaymentSucceededEvent): Promise<BankTransaction> {
+  async createPlatformExpensePayment(
+    data: PaymentSucceededEvent,
+  ): Promise<BankTransaction | undefined> {
+    const existingExpense = await this.getExpenseByCopilotPaymentId(data.id)
+    if (existingExpense) {
+      logger.info(
+        'SyncedPaymentsService#createPlatformExpensePayment :: Expense already synced for payment, skipping replay',
+        data.id,
+      )
+      return undefined
+    }
+
     const regionService = new RegionService(this.user, this.connection)
     const regionConfig = await regionService.getRegionConfig()
     if (!regionConfig) {
@@ -93,7 +125,7 @@ class SyncedPaymentsService extends AuthenticatedXeroService {
         lineItems: [
           {
             accountCode: expenseAccount.code,
-            description: 'Assembly Absorbed Fees',
+            description: `Assembly Absorbed Fees (Invoice ${invoice.invoiceID})`,
             quantity: 1,
             unitAmount: data.feeAmount.paidByPlatform / 100,
           },
@@ -101,13 +133,19 @@ class SyncedPaymentsService extends AuthenticatedXeroService {
         contact: {
           name: 'Assembly Processing Fees',
         },
-        reference: invoice.invoiceID,
+        // Use the payment id as reference so we can find this expense later.
+        reference: data.id,
       } satisfies BankTransaction
 
-      const transaction = await this.xero.createBankTransaction(
-        this.connection.tenantId,
-        transactionPayload,
-      )
+      // A retry may run after Xero's idempotency window, so look up the
+      // expense by reference and reuse it instead of making a duplicate.
+      const transaction =
+        (await this.xero.findBankTransactionByReference(this.connection.tenantId, data.id)) ??
+        (await this.xero.createBankTransaction(
+          this.connection.tenantId,
+          transactionPayload,
+          data.id,
+        ))
       if (!transaction) {
         throw new APIError(
           'Failed to create a transaction for Expense account',
@@ -115,8 +153,7 @@ class SyncedPaymentsService extends AuthenticatedXeroService {
         )
       }
 
-      // Log payment to DB as an expense
-      await this.createPaymentRecord(
+      const inserted = await this.createPaymentRecord(
         {
           copilotInvoiceId: data.invoiceId,
           xeroInvoiceId: z.string().parse(invoice.invoiceID),
@@ -125,6 +162,15 @@ class SyncedPaymentsService extends AuthenticatedXeroService {
         },
         PaymentUserType.EXPENSE,
       )
+
+      // Another delivery already recorded this expense, so skip the sync log.
+      if (!inserted.length) {
+        logger.info(
+          'SyncedPaymentsService#createPlatformExpensePayment :: Concurrent duplicate detected on insert, skipping sync log',
+          data.id,
+        )
+        return transaction
+      }
 
       logger.info(
         'SyncedPaymentsService#createPlatformExpensePayment :: Created platform expense payment',

@@ -113,6 +113,13 @@
       "when": 1782112630157,
       "tag": "20260622071710_add_sales_account_id_to_synced_invoices",
       "breakpoints": false
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1782217284620,
+      "tag": "20260623122124_uq_synced_payments_portal_tenant_copilot_payment_id",
+      "breakpoints": false
     }
   ]
 }

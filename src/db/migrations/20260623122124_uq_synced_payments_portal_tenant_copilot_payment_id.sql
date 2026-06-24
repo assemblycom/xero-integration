@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "uq_synced_payments_portal_tenant_copilot_payment_id" ON "synced_payments" USING btree ("portal_id","tenant_id","copilot_payment_id") WHERE "synced_payments"."copilot_payment_id" IS NOT NULL;
