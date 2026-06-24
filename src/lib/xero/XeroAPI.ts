@@ -345,7 +345,7 @@ class XeroAPI {
     invoiceReference: string,
     amountInCents: number,
   ) {
-    const candidates = (
+    const candidateTxns = (
       await this.getBankTransactionsByReference(tenantId, invoiceReference)
     ).filter(
       (tx) =>
@@ -353,16 +353,16 @@ class XeroAPI {
         typeof tx.total === 'number' &&
         Math.round(tx.total * 100) === amountInCents,
     )
-    if (candidates.length > 1) {
+    if (candidateTxns.length > 1) {
       // Ambiguous: same-amount expenses on one invoice. Skip adopting and
       // flag for manual cleanup of the legacy duplicates.
       logger.warn(
         'XeroAPI#findLegacyExpenseByInvoice :: Multiple legacy expenses match, not adopting',
-        { tenantId, invoiceReference, count: candidates.length },
+        { tenantId, invoiceReference, count: candidateTxns.length },
       )
       return undefined
     }
-    return candidates[0]
+    return candidateTxns[0]
   }
 
   async updateBankTransaction(
