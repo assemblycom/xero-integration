@@ -115,6 +115,9 @@ class SyncedPaymentsService extends AuthenticatedXeroService {
         accountsService.getOrCreateCopilotExpenseAccount(regionConfig),
       ])
 
+      const feeAmount = data.feeAmount.paidByPlatform / 100
+      const xeroInvoiceId = z.string().parse(invoice.invoiceID)
+
       // Create an expense invoice
       const transactionPayload = {
         type: BankTransaction.TypeEnum.SPEND,
@@ -125,9 +128,9 @@ class SyncedPaymentsService extends AuthenticatedXeroService {
         lineItems: [
           {
             accountCode: expenseAccount.code,
-            description: `Assembly Absorbed Fees (Invoice ${invoice.invoiceID})`,
+            description: `Assembly Absorbed Fees (Invoice ${xeroInvoiceId})`,
             quantity: 1,
-            unitAmount: data.feeAmount.paidByPlatform / 100,
+            unitAmount: feeAmount,
           },
         ],
         contact: {
@@ -137,10 +140,16 @@ class SyncedPaymentsService extends AuthenticatedXeroService {
         reference: data.id,
       } satisfies BankTransaction
 
-      // A retry may run after Xero's idempotency window, so look up the
-      // expense by reference and reuse it instead of making a duplicate.
+      // A retry may run after Xero's idempotency window, so look up the expense
+      // and reuse it instead of making a duplicate. Fall back to the old
+      // invoice-id reference for expenses created before this change.
       const transaction =
         (await this.xero.findBankTransactionByReference(this.connection.tenantId, data.id)) ??
+        (await this.xero.findLegacyExpenseByInvoice(
+          this.connection.tenantId,
+          xeroInvoiceId,
+          data.feeAmount.paidByPlatform,
+        )) ??
         (await this.xero.createBankTransaction(
           this.connection.tenantId,
           transactionPayload,
@@ -156,7 +165,7 @@ class SyncedPaymentsService extends AuthenticatedXeroService {
       const inserted = await this.createPaymentRecord(
         {
           copilotInvoiceId: data.invoiceId,
-          xeroInvoiceId: z.string().parse(invoice.invoiceID),
+          xeroInvoiceId,
           xeroPaymentId: z.string().parse(transaction.bankTransactionID),
           copilotPaymentId: data.id,
         },

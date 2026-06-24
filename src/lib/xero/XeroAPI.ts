@@ -324,12 +324,10 @@ class XeroAPI {
   }
 
   async getBankTransactionsByReference(tenantId: string, reference: string) {
-    // Escape quotes so a stray quote in the reference can't break the filter.
-    const safeReference = reference.replace(/"/g, '\\"')
     const res = await this.xero.accountingApi.getBankTransactions(
       tenantId,
       undefined, // ifModifiedSince
-      `Type=="SPEND" AND Reference=="${safeReference}"`,
+      `Type=="SPEND" AND Reference=="${reference}"`,
     )
     return res.body.bankTransactions ?? []
   }
@@ -338,6 +336,33 @@ class XeroAPI {
     const transactions = await this.getBankTransactionsByReference(tenantId, reference)
     // Only reuse a live expense; a deleted one should be recreated.
     return transactions.find((tx) => tx.status === BankTransaction.StatusEnum.AUTHORISED)
+  }
+
+  // Old expenses used the invoice id as reference. Match on amount and only
+  // adopt a unique result so we never pick the wrong payment's expense.
+  async findLegacyExpenseByInvoice(
+    tenantId: string,
+    invoiceReference: string,
+    amountInCents: number,
+  ) {
+    const candidates = (
+      await this.getBankTransactionsByReference(tenantId, invoiceReference)
+    ).filter(
+      (tx) =>
+        tx.status === BankTransaction.StatusEnum.AUTHORISED &&
+        typeof tx.total === 'number' &&
+        Math.round(tx.total * 100) === amountInCents,
+    )
+    if (candidates.length > 1) {
+      // Ambiguous: same-amount expenses on one invoice. Skip adopting and
+      // flag for manual cleanup of the legacy duplicates.
+      logger.warn(
+        'XeroAPI#findLegacyExpenseByInvoice :: Multiple legacy expenses match, not adopting',
+        { tenantId, invoiceReference, count: candidates.length },
+      )
+      return undefined
+    }
+    return candidates[0]
   }
 
   async updateBankTransaction(
