@@ -338,6 +338,20 @@ class XeroAPI {
     return transactions.find((tx) => tx.status === BankTransaction.StatusEnum.AUTHORISED)
   }
 
+  async getBankTransaction(tenantId: string, bankTransactionId: string) {
+    const res = await this.xero.accountingApi.getBankTransaction(tenantId, bankTransactionId)
+    return res.body.bankTransactions?.[0]
+  }
+
+  deleteBankTransaction(tenantId: string, bankTransactionId: string) {
+    // Delete by setting Status=DELETED. Cast since only status matters.
+    const payload = {
+      type: BankTransaction.TypeEnum.SPEND,
+      status: BankTransaction.StatusEnum.DELETED,
+    } as BankTransaction
+    return this.updateBankTransaction(tenantId, bankTransactionId, payload)
+  }
+
   // Old expenses used the invoice id as reference. Match on amount and only
   // adopt a unique result so we never pick the wrong payment's expense.
   async findLegacyExpenseByInvoice(
