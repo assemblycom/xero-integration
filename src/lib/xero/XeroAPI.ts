@@ -4,7 +4,7 @@ import status from 'http-status'
 import {
   type Account,
   AccountType,
-  type BankTransaction,
+  BankTransaction,
   type CountryCode,
   Invoice,
   type Item,
@@ -312,11 +312,32 @@ class XeroAPI {
     return body.accounts?.[0]
   }
 
-  async createBankTransaction(tenantId: string, payload: BankTransaction) {
-    const res = await this.xero.accountingApi.createBankTransactions(tenantId, {
-      bankTransactions: [payload],
-    })
+  async createBankTransaction(tenantId: string, payload: BankTransaction, idempotencyKey?: string) {
+    const res = await this.xero.accountingApi.createBankTransactions(
+      tenantId,
+      { bankTransactions: [payload] },
+      undefined, // summarizeErrors
+      undefined, // unitdp
+      idempotencyKey,
+    )
     return res.body.bankTransactions?.[0]
+  }
+
+  async getBankTransactionsByReference(tenantId: string, reference: string) {
+    // Escape quotes so a stray quote in the reference can't break the filter.
+    const safeReference = reference.replace(/"/g, '\\"')
+    const res = await this.xero.accountingApi.getBankTransactions(
+      tenantId,
+      undefined, // ifModifiedSince
+      `Type=="SPEND" AND Reference=="${safeReference}"`,
+    )
+    return res.body.bankTransactions ?? []
+  }
+
+  async findBankTransactionByReference(tenantId: string, reference: string) {
+    const transactions = await this.getBankTransactionsByReference(tenantId, reference)
+    // Only reuse a live expense; a deleted one should be recreated.
+    return transactions.find((tx) => tx.status === BankTransaction.StatusEnum.AUTHORISED)
   }
 
   async updateBankTransaction(

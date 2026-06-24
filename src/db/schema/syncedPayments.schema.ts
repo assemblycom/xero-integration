@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm'
 import { index, pgEnum, pgTable, uniqueIndex, uuid, varchar } from 'drizzle-orm/pg-core'
 import { createSelectSchema } from 'drizzle-zod'
 import type z from 'zod'
@@ -45,6 +46,10 @@ export const syncedPayments = pgTable(
       t.copilotInvoiceId,
     ),
     uniqueIndex('uq_synced_payments_xero_payment_id').on(t.xeroPaymentId),
+    // One expense per Copilot payment. Partial so NULL payment rows are skipped.
+    uniqueIndex('uq_synced_payments_portal_tenant_copilot_payment_id')
+      .on(t.portalId, t.tenantId, t.copilotPaymentId)
+      .where(sql`${t.copilotPaymentId} IS NOT NULL`),
   ],
 )
 
