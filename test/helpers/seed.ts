@@ -11,35 +11,33 @@ export const TEST_WEBHOOK_TOKEN = 'test-token-xyz'
 export const TEST_ACCESS_TOKEN = 'test-access-token'
 export const TEST_REFRESH_TOKEN = 'test-refresh-token'
 
-// expires_at is in seconds. One hour ahead keeps `isAccessTokenValid` true so
-// tests don't trigger a real Xero OAuth refresh. Kept as a plain record so the
-// shape stays inspectable; cast to TokenSet at the insert boundary below.
-const validTokenSet = {
-  access_token: TEST_ACCESS_TOKEN,
-  refresh_token: TEST_REFRESH_TOKEN,
-  expires_at: Math.floor(Date.now() / 1000) + 3600,
-  expires_in: 3600,
-  token_type: 'Bearer',
-  scope: 'accounting.transactions accounting.contacts offline_access',
-}
-
 type ConnectionOverrides = Partial<InferInsertModel<typeof xeroConnections>>
 type SettingsOverrides = Partial<InferInsertModel<typeof settings>>
 
-const baseConnection: InferInsertModel<typeof xeroConnections> = {
-  portalId: TEST_PORTAL_ID,
-  tenantId: TEST_TENANT_ID,
-  // tokenSet is a jsonb column typed as the TokenSet class; we persist only the
-  // JSON data fields, so cast here rather than reshaping the literal.
-  tokenSet: validTokenSet as unknown as TokenSet,
-  status: true,
-  initiatedBy: TEST_INTERNAL_USER_ID,
+// Built per seed so expires_at stays in the future on long runs, keeping the
+// token valid. Cast because we store only the TokenSet JSON fields.
+function buildBaseConnection(): InferInsertModel<typeof xeroConnections> {
+  const validTokenSet = {
+    access_token: TEST_ACCESS_TOKEN,
+    refresh_token: TEST_REFRESH_TOKEN,
+    expires_at: Math.floor(Date.now() / 1000) + 3600,
+    expires_in: 3600,
+    token_type: 'Bearer',
+    scope: 'accounting.transactions accounting.contacts offline_access',
+  }
+  return {
+    portalId: TEST_PORTAL_ID,
+    tenantId: TEST_TENANT_ID,
+    tokenSet: validTokenSet as unknown as TokenSet,
+    status: true,
+    initiatedBy: TEST_INTERNAL_USER_ID,
+  }
 }
 
 export async function seedXeroConnection(overrides: ConnectionOverrides = {}) {
   const [row] = await db
     .insert(xeroConnections)
-    .values({ ...baseConnection, ...overrides })
+    .values({ ...buildBaseConnection(), ...overrides })
     .returning()
   return row
 }
