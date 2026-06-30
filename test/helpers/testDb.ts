@@ -1,13 +1,9 @@
 import { getTableName, sql } from 'drizzle-orm'
 import db from '@/db'
 import { schema } from '@/db/schema'
-import { failedSyncs } from '@/db/schema/failedSyncs.schema'
-import { syncLogs } from '@/db/schema/syncLogs.schema'
 
-// Derive the table list from the schema so new tables are truncated
-// automatically. `schema/index.ts` omits syncLogs + failedSyncs, so add them
-// explicitly until they're included there.
-const ALL_TABLES = [...Object.values(schema), syncLogs, failedSyncs]
+// Derived from the schema barrel so new tables are truncated automatically.
+const ALL_TABLES = Object.values(schema)
 
 /**
  * Wipes every table that integration tests can touch. Call in `beforeEach` —
