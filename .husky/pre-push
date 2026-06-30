@@ -4,4 +4,5 @@ set -Eeuo pipefail
 
 # Typecheck & lint the whole codebase before push - saves us from having to catch lint errors in CI
 pnpm lint
+pnpm typecheck:test # build typechecks src but excludes test/, so check the test project here
 pnpm build # This also does typechecking

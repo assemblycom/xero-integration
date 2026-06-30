@@ -8,12 +8,16 @@
     "build:all": "sh scripts/build/build.sh",
     "start": "next start",
     "clean-start": "next build --turbopack && next start",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && pnpm typecheck:test",
+    "typecheck:test": "tsc --noEmit -p test/tsconfig.json",
     "lint": "biome check",
     "format": "biome format --write",
     "lint-staged": "lint-staged",
     "prepare": "husky",
-    "ex": "tsx --tsconfig tsconfig.tsx.json --require dotenv/config --require tsconfig-paths/register"
+    "ex": "tsx --tsconfig tsconfig.tsx.json --require dotenv/config --require tsconfig-paths/register",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@sentry/nextjs": "^10.29.0",
@@ -49,19 +53,23 @@
     "@commitlint/types": "^19.8.1",
     "@supabase/supabase-js": "^2.56.1",
     "@tailwindcss/postcss": "^4",
+    "@testcontainers/postgresql": "^11.14.0",
     "@types/node": "^20",
     "@types/react": "19.2.7",
     "@types/react-dom": "19.2.3",
     "@types/react-linkify": "^1.0.4",
+    "@vitest/coverage-v8": "^4.1.9",
     "drizzle-kit": "^0.31.4",
     "husky": "^9.1.7",
     "lint-staged": "^16.1.5",
+    "next-test-api-route-handler": "^5.0.5",
     "server-only": "^0.0.1",
     "supabase": "^2.39.2",
     "tailwindcss": "^4",
     "tsconfig-paths": "^4.2.0",
     "tsx": "^4.20.5",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.9"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,json,css}": [

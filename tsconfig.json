@@ -28,7 +28,8 @@
       "@items-sync/*": ["./src/features/items-sync/*"],
       "@settings/*": ["./src/features/settings/*"],
       "@sync-logs/*": ["./src/features/sync-logs/*"],
-      "@webhook/*": ["./src/features/webhook/*"]
+      "@webhook/*": ["./src/features/webhook/*"],
+      "@test/*": ["./test/*"]
     }
   },
   "include": [
@@ -39,5 +40,5 @@
     "commitlint.config.ts",
     ".next/dev/types/**/*.ts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "test"]
 }
