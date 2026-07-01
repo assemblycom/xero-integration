@@ -1,7 +1,10 @@
-import { TEST_INTERNAL_USER_ID, TEST_PORTAL_ID } from '@test/helpers/seed'
+import { TEST_INTERNAL_USER_ID, TEST_PORTAL_ID, TEST_XERO_ITEM_ID } from '@test/helpers/seed'
 import { type Mock, vi } from 'vitest'
 import { CopilotAPI } from '@/lib/copilot/CopilotAPI'
 import XeroAPI from '@/lib/xero/XeroAPI'
+
+// Minimal shape of the item payload SyncedItemsService sends to Xero.
+type CreateItemInput = { code: string; name: string; description?: string }
 
 // Restricts override keys to the actual method names of the underlying class so
 // typos produce a compile-time error. The Mock value type stays loose — tests
@@ -31,11 +34,21 @@ export function createMockCopilotAPI(overrides: CopilotAPIOverrides = {}) {
  * Factory for a mocked XeroAPI instance. `setTokenSet` is a no-op spy because
  * AuthenticatedXeroService calls it in its constructor. `getOrganisationCountryCode`
  * defaults to a supported region so RegionService resolves without a live call.
+ * `createItems` echoes the input code (so the productId mapping resolves) and
+ * assigns a valid uuid itemID (persisted into the uuid `synced_items.item_id`).
  */
 export function createMockXeroAPI(overrides: XeroAPIOverrides = {}) {
   return {
     setTokenSet: vi.fn(),
     getOrganisationCountryCode: vi.fn().mockResolvedValue('US'),
+    createItems: vi.fn(async (_tenantId: string, items: CreateItemInput[]) =>
+      items.map((item) => ({
+        itemID: TEST_XERO_ITEM_ID,
+        code: item.code,
+        name: item.name,
+        description: item.description,
+      })),
+    ),
     ...overrides,
   }
 }
