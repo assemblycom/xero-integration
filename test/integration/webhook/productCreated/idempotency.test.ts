@@ -1,11 +1,7 @@
 import productCreatedPayload from '@test/fixtures/productCreated.webhook'
+import { TEST_PRODUCT, TEST_XERO_ITEM } from '@test/helpers/constants'
 import { setupProductCreatedTest } from '@test/helpers/productCreatedTestSetup'
-import {
-  seedConnectedPortal,
-  seedSyncedItem,
-  TEST_OTHER_XERO_ITEM_ID,
-  TEST_PRODUCT_ID,
-} from '@test/helpers/seed'
+import { seedConnectedPortal, seedSyncedItem } from '@test/helpers/seed'
 import { postWebhook } from '@test/helpers/webhook'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
@@ -22,7 +18,7 @@ describe('POST /api/webhook — product.created (already mapped)', () => {
 
   it('skips the Xero call and writes no new rows when the product is already mapped', async () => {
     await seedConnectedPortal()
-    await seedSyncedItem({ itemId: TEST_OTHER_XERO_ITEM_ID })
+    await seedSyncedItem({ itemId: TEST_XERO_ITEM.other })
 
     const res = await postWebhook(productCreatedPayload)
     expect(res.status).toBe(200)
@@ -34,9 +30,9 @@ describe('POST /api/webhook — product.created (already mapped)', () => {
     const items = await db
       .select()
       .from(syncedItems)
-      .where(eq(syncedItems.productId, TEST_PRODUCT_ID))
+      .where(eq(syncedItems.productId, TEST_PRODUCT.id))
     expect(items).toHaveLength(1)
-    expect(items[0].itemId).toBe(TEST_OTHER_XERO_ITEM_ID)
+    expect(items[0].itemId).toBe(TEST_XERO_ITEM.other)
 
     // Early return skips both logging and failure recording.
     expect(await db.select().from(syncLogs)).toHaveLength(0)

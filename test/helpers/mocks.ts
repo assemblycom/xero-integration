@@ -1,4 +1,4 @@
-import { TEST_INTERNAL_USER_ID, TEST_PORTAL_ID, TEST_XERO_ITEM_ID } from '@test/helpers/seed'
+import { TEST_PORTAL, TEST_XERO_ITEM } from '@test/helpers/constants'
 import { type Mock, vi } from 'vitest'
 import { CopilotAPI } from '@/lib/copilot/CopilotAPI'
 import XeroAPI from '@/lib/xero/XeroAPI'
@@ -18,8 +18,8 @@ type XeroAPIOverrides = MockMethodOverrides<XeroAPI>
 export function createMockCopilotAPI(overrides: CopilotAPIOverrides = {}) {
   return {
     getTokenPayload: vi.fn().mockResolvedValue({
-      workspaceId: TEST_PORTAL_ID,
-      internalUserId: TEST_INTERNAL_USER_ID,
+      workspaceId: TEST_PORTAL.id,
+      internalUserId: TEST_PORTAL.internalUserId,
     }),
     ...overrides,
   }
@@ -29,7 +29,7 @@ export function createMockCopilotAPI(overrides: CopilotAPIOverrides = {}) {
 // - setTokenSet: no-op (called in the service constructor)
 // - getOrganisationCountryCode: a supported region, so no live call
 // - createItems: echoes the code and gives each item a unique uuid, like real
-//   Xero. The first item keeps TEST_XERO_ITEM_ID for single-product asserts.
+//   Xero. The first item keeps TEST_XERO_ITEM.id for single-product asserts.
 export function createMockXeroAPI(overrides: XeroAPIOverrides = {}) {
   return {
     setTokenSet: vi.fn(),
@@ -38,7 +38,7 @@ export function createMockXeroAPI(overrides: XeroAPIOverrides = {}) {
       items.map((item, index) => ({
         itemID:
           index === 0
-            ? TEST_XERO_ITEM_ID
+            ? TEST_XERO_ITEM.id
             : `44444444-4444-4444-8444-${String(index).padStart(12, '0')}`,
         code: item.code,
         name: item.name,

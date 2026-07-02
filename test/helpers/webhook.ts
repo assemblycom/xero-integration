@@ -1,4 +1,4 @@
-import { TEST_WEBHOOK_TOKEN } from '@test/helpers/seed'
+import { TEST_TOKENS } from '@test/helpers/constants'
 import { testApiHandler } from 'next-test-api-route-handler'
 import * as appHandler from '@/app/api/webhook/route'
 
@@ -11,7 +11,7 @@ export async function postWebhook(
   payload: unknown,
   opts: { token?: string } = {},
 ): Promise<Response> {
-  const token = opts.token ?? TEST_WEBHOOK_TOKEN
+  const token = opts.token ?? TEST_TOKENS.webhook
   let response: Response | undefined
   await testApiHandler({
     appHandler,

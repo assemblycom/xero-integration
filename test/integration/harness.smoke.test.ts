@@ -1,4 +1,5 @@
-import { seedConnectedPortal, TEST_PORTAL_ID } from '@test/helpers/seed'
+import { TEST_PORTAL } from '@test/helpers/constants'
+import { seedConnectedPortal } from '@test/helpers/seed'
 import { truncateAllTestTables } from '@test/helpers/testDb'
 import { beforeEach, describe, expect, it } from 'vitest'
 import db from '@/db'
@@ -26,11 +27,11 @@ describe('integration harness', () => {
 
     const connections = await db.select().from(xeroConnections)
     expect(connections).toHaveLength(1)
-    expect(connections[0]).toMatchObject({ portalId: TEST_PORTAL_ID, status: true })
+    expect(connections[0]).toMatchObject({ portalId: TEST_PORTAL.id, status: true })
 
     const settingRows = await db.select().from(settings)
     expect(settingRows).toHaveLength(1)
-    expect(settingRows[0]).toMatchObject({ portalId: TEST_PORTAL_ID, isSyncEnabled: true })
+    expect(settingRows[0]).toMatchObject({ portalId: TEST_PORTAL.id, isSyncEnabled: true })
   })
 
   it('truncates between tests', async () => {

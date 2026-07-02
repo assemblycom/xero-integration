@@ -1,12 +1,8 @@
 import productCreatedPayload from '@test/fixtures/productCreated.webhook'
+import { TEST_PORTAL, TEST_PRODUCT } from '@test/helpers/constants'
 import { createMockXeroAPI } from '@test/helpers/mocks'
 import { setupProductCreatedTest } from '@test/helpers/productCreatedTestSetup'
-import {
-  seedConnectedPortal,
-  TEST_PORTAL_ID,
-  TEST_PRODUCT_ID,
-  TEST_TENANT_ID,
-} from '@test/helpers/seed'
+import { seedConnectedPortal } from '@test/helpers/seed'
 import { postWebhook } from '@test/helpers/webhook'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
@@ -37,11 +33,11 @@ describe('POST /api/webhook — product.created (Xero createItems fails)', () =>
     expect(await db.select().from(syncedItems)).toHaveLength(0)
 
     // FAILED sync log written.
-    const logs = await db.select().from(syncLogs).where(eq(syncLogs.copilotId, TEST_PRODUCT_ID))
+    const logs = await db.select().from(syncLogs).where(eq(syncLogs.copilotId, TEST_PRODUCT.id))
     expect(logs).toHaveLength(1)
     expect(logs[0]).toMatchObject({
-      portalId: TEST_PORTAL_ID,
-      tenantId: TEST_TENANT_ID,
+      portalId: TEST_PORTAL.id,
+      tenantId: TEST_PORTAL.tenantId,
       entityType: SyncEntityType.PRODUCT,
       eventType: SyncEventType.CREATED,
       status: SyncStatus.FAILED,
@@ -53,13 +49,13 @@ describe('POST /api/webhook — product.created (Xero createItems fails)', () =>
     const failed = await db
       .select()
       .from(failedSyncs)
-      .where(eq(failedSyncs.resourceId, TEST_PRODUCT_ID))
+      .where(eq(failedSyncs.resourceId, TEST_PRODUCT.id))
     expect(failed).toHaveLength(1)
     expect(failed[0]).toMatchObject({
-      portalId: TEST_PORTAL_ID,
-      tenantId: TEST_TENANT_ID,
+      portalId: TEST_PORTAL.id,
+      tenantId: TEST_PORTAL.tenantId,
       type: 'product.created',
-      resourceId: TEST_PRODUCT_ID,
+      resourceId: TEST_PRODUCT.id,
     })
   })
 })
