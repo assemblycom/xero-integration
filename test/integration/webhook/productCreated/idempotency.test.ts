@@ -10,15 +10,13 @@ import { postWebhook } from '@test/helpers/webhook'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import db from '@/db'
+import { failedSyncs } from '@/db/schema/failedSyncs.schema'
 import { syncedItems } from '@/db/schema/syncedItems.schema'
 import { syncLogs } from '@/db/schema/syncLogs.schema'
 
-// Re-sending product.created for an already-mapped product must not duplicate it.
-// This covers the getSyncedItemsMapByProductIds pre-check short-circuit. The
-// separate onConflictDoNothing orphan-cleanup branch in
-// SyncedItemsService#createItems only fires on a true insert-time race (a row
-// created between the pre-check and the insert), which can't be triggered
-// deterministically here, so it is intentionally not covered.
+// Re-sending product.created for a mapped product must not duplicate it. This
+// hits the pre-check that skips mapped products. The insert-time conflict branch
+// only fires on a real race, so it's left uncovered on purpose.
 describe('POST /api/webhook — product.created (already mapped)', () => {
   const apis = setupProductCreatedTest()
 
@@ -40,7 +38,8 @@ describe('POST /api/webhook — product.created (already mapped)', () => {
     expect(items).toHaveLength(1)
     expect(items[0].itemId).toBe(TEST_OTHER_XERO_ITEM_ID)
 
-    // Early return skips logging.
+    // Early return skips both logging and failure recording.
     expect(await db.select().from(syncLogs)).toHaveLength(0)
+    expect(await db.select().from(failedSyncs)).toHaveLength(0)
   })
 })

@@ -11,6 +11,7 @@ import { postWebhook } from '@test/helpers/webhook'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import db from '@/db'
+import { failedSyncs } from '@/db/schema/failedSyncs.schema'
 import { syncedItems } from '@/db/schema/syncedItems.schema'
 import { SyncEntityType, SyncEventType, SyncStatus, syncLogs } from '@/db/schema/syncLogs.schema'
 
@@ -57,5 +58,8 @@ describe('POST /api/webhook — product.created', () => {
       productName: 'Test Product',
       xeroItemName: 'Test Product',
     })
+
+    // No failure recorded on the happy path.
+    expect(await db.select().from(failedSyncs)).toHaveLength(0)
   })
 })
