@@ -4,16 +4,16 @@ import { beforeEach } from 'vitest'
 
 type InstallOpts = Parameters<typeof installMockApis>[0]
 
-export interface ProductCreatedTestHandle {
+export interface WebhookTestHandle {
   copilot: MockCopilotAPI
   xero: MockXeroAPI
 }
 
-// beforeEach for product.created tests: truncates the DB and installs fresh
+// beforeEach for webhook integration tests: truncates the DB and installs fresh
 // mocks. Returns a handle with the current test's copilot/xero mocks.
 // `optsFactory` runs per test so overrides get fresh vi.fn()s.
-export function setupProductCreatedTest(optsFactory?: () => InstallOpts): ProductCreatedTestHandle {
-  const handle = {} as ProductCreatedTestHandle
+export function setupWebhookTest(optsFactory?: () => InstallOpts): WebhookTestHandle {
+  const handle = {} as WebhookTestHandle
 
   beforeEach(async () => {
     await truncateAllTestTables()
