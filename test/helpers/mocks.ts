@@ -6,9 +6,7 @@ import XeroAPI from '@/lib/xero/XeroAPI'
 // Minimal shape of the item payload SyncedItemsService sends to Xero.
 type CreateItemInput = { code: string; name: string; description?: string }
 
-// Restricts override keys to the actual method names of the underlying class so
-// typos produce a compile-time error. The Mock value type stays loose — tests
-// routinely return shapes that don't match the real Promise return type.
+// Only real method names can be overridden, so typos fail at compile time.
 type MockMethodOverrides<T> = {
   [K in keyof T as T[K] extends (...args: never[]) => unknown ? K : never]?: Mock
 }
@@ -16,10 +14,7 @@ type MockMethodOverrides<T> = {
 type CopilotAPIOverrides = MockMethodOverrides<CopilotAPI>
 type XeroAPIOverrides = MockMethodOverrides<XeroAPI>
 
-/**
- * Factory for a mocked CopilotAPI instance. Override any method via `overrides`
- * to tailor behavior per test.
- */
+// Mocked CopilotAPI. Override any method per test via `overrides`.
 export function createMockCopilotAPI(overrides: CopilotAPIOverrides = {}) {
   return {
     getTokenPayload: vi.fn().mockResolvedValue({
@@ -30,20 +25,21 @@ export function createMockCopilotAPI(overrides: CopilotAPIOverrides = {}) {
   }
 }
 
-/**
- * Factory for a mocked XeroAPI instance. `setTokenSet` is a no-op spy because
- * AuthenticatedXeroService calls it in its constructor. `getOrganisationCountryCode`
- * defaults to a supported region so RegionService resolves without a live call.
- * `createItems` echoes the input code (so the productId mapping resolves) and
- * assigns a valid uuid itemID (persisted into the uuid `synced_items.item_id`).
- */
+// Mocked XeroAPI. Defaults cover the product.created happy path:
+// - setTokenSet: no-op (called in the service constructor)
+// - getOrganisationCountryCode: a supported region, so no live call
+// - createItems: echoes the code and gives each item a unique uuid, like real
+//   Xero. The first item keeps TEST_XERO_ITEM_ID for single-product asserts.
 export function createMockXeroAPI(overrides: XeroAPIOverrides = {}) {
   return {
     setTokenSet: vi.fn(),
     getOrganisationCountryCode: vi.fn().mockResolvedValue('US'),
     createItems: vi.fn(async (_tenantId: string, items: CreateItemInput[]) =>
-      items.map((item) => ({
-        itemID: TEST_XERO_ITEM_ID,
+      items.map((item, index) => ({
+        itemID:
+          index === 0
+            ? TEST_XERO_ITEM_ID
+            : `44444444-4444-4444-8444-${String(index).padStart(12, '0')}`,
         code: item.code,
         name: item.name,
         description: item.description,
@@ -56,14 +52,9 @@ export function createMockXeroAPI(overrides: XeroAPIOverrides = {}) {
 export type MockCopilotAPI = ReturnType<typeof createMockCopilotAPI>
 export type MockXeroAPI = ReturnType<typeof createMockXeroAPI>
 
-/**
- * Wires the module-mocked CopilotAPI + XeroAPI constructors to shared instances
- * and returns them so tests can assert on calls. Uses `function` (not arrow) so
- * the mock is callable with `new`.
- *
- * Caveat: one request may construct CopilotAPI several times (auth + sync flow) —
- * all share this instance, so call counts sum across sites.
- */
+// Points the CopilotAPI + XeroAPI constructors at shared mock instances and
+// returns them so tests can assert on calls. Uses `function` so `new` works.
+// Note: a request may build CopilotAPI more than once, so call counts add up.
 export function installMockApis(opts: { copilot?: MockCopilotAPI; xero?: MockXeroAPI } = {}): {
   copilot: MockCopilotAPI
   xero: MockXeroAPI
