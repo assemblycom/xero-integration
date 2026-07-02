@@ -1,6 +1,12 @@
 name: Code Quality Checks
 
-on: push
+# Run on PRs to main and on pushes to main (post-merge sanity). Feature-branch
+# pushes without a PR don't trigger CI, so nothing double-fires.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
 
 permissions:
   contents: read
@@ -78,3 +84,39 @@ jobs:
 
       - name: Type check
         run: pnpm typecheck
+
+  integration-tests:
+    name: Integration tests
+    # Only on PRs, and only after the cheap static checks pass — so a lint/type
+    # error fails fast without spinning up Docker + Testcontainers.
+    if: github.event_name == 'pull_request'
+    needs: [run-linter, type-check]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.15
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            **/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Testcontainers starts an ephemeral Postgres via Docker, preinstalled on
+      # ubuntu-latest. globalSetup loads .env.test (committed, non-secret stubs)
+      # and sets DATABASE_URL from the container, so no secrets are needed here.
+      - name: Run integration tests
+        run: pnpm test
