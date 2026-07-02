@@ -1,8 +1,8 @@
 import productCreatedPayload from '@test/fixtures/productCreated.webhook'
 import { TEST_PRODUCT, TEST_XERO_ITEM } from '@test/helpers/constants'
-import { setupProductCreatedTest } from '@test/helpers/productCreatedTestSetup'
 import { seedConnectedPortal, seedSyncedItem } from '@test/helpers/seed'
 import { postWebhook } from '@test/helpers/webhook'
+import { setupWebhookTest } from '@test/helpers/webhookTestSetup'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import db from '@/db'
@@ -14,7 +14,7 @@ import { syncLogs } from '@/db/schema/syncLogs.schema'
 // hits the pre-check that skips mapped products. The insert-time conflict branch
 // only fires on a real race, so it's left uncovered on purpose.
 describe('POST /api/webhook — product.created (already mapped)', () => {
-  const apis = setupProductCreatedTest()
+  const apis = setupWebhookTest()
 
   it('skips the Xero call and writes no new rows when the product is already mapped', async () => {
     await seedConnectedPortal()
