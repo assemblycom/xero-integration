@@ -9,13 +9,9 @@ export interface ProductCreatedTestHandle {
   xero: MockXeroAPI
 }
 
-/**
- * Registers the standard `beforeEach` (truncate + installMockApis) for
- * product.created integration tests. Returns a live handle whose `copilot` /
- * `xero` are replaced with fresh mock instances before each test. `optsFactory`
- * runs per test so overrides get freshly instantiated `vi.fn()`s.
- * Mock call history is reset by `clearMocks: true` in vitest.config.ts.
- */
+// beforeEach for product.created tests: truncates the DB and installs fresh
+// mocks. Returns a handle with the current test's copilot/xero mocks.
+// `optsFactory` runs per test so overrides get fresh vi.fn()s.
 export function setupProductCreatedTest(optsFactory?: () => InstallOpts): ProductCreatedTestHandle {
   const handle = {} as ProductCreatedTestHandle
 

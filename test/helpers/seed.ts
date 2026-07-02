@@ -21,8 +21,8 @@ export const TEST_OTHER_XERO_ITEM_ID = '99999999-9999-4999-8999-999999999999'
 type ConnectionOverrides = Partial<InferInsertModel<typeof xeroConnections>>
 type SettingsOverrides = Partial<InferInsertModel<typeof settings>>
 
-// Built per seed so expires_at stays in the future on long runs, keeping the
-// token valid. Cast because we store only the TokenSet JSON fields.
+// Built per seed so expires_at stays in the future, keeping the token valid.
+// Cast because we only store the TokenSet JSON fields.
 function buildBaseConnection(): InferInsertModel<typeof xeroConnections> {
   const validTokenSet = {
     access_token: TEST_ACCESS_TOKEN,
@@ -68,10 +68,7 @@ export async function seedSettings(overrides: SettingsOverrides = {}) {
   return row
 }
 
-/**
- * Seeds the common "healthy connected portal" fixture: an active Xero
- * connection plus sync-enabled settings for the same portal x tenant.
- */
+// Seeds an active Xero connection plus sync-enabled settings for one portal.
 export async function seedConnectedPortal(
   opts: { connection?: ConnectionOverrides; settings?: SettingsOverrides } = {},
 ) {

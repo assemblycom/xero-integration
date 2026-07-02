@@ -8,9 +8,8 @@ import { failedSyncs } from '@/db/schema/failedSyncs.schema'
 import { syncedItems } from '@/db/schema/syncedItems.schema'
 import { syncLogs } from '@/db/schema/syncLogs.schema'
 
-// Controller-level gate: sync is disabled for the whole workspace, so the
-// controller short-circuits before the event is ever dispatched. Distinct from
-// the service-level syncProductsAutomatically gate.
+// Workspace sync is off, so the controller stops before dispatching the event.
+// This is a different gate from syncProductsAutomatically.
 describe('POST /api/webhook — product.created (isSyncEnabled=false)', () => {
   const apis = setupProductCreatedTest()
 

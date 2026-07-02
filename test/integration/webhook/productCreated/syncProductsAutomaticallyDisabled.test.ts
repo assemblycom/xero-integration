@@ -8,8 +8,8 @@ import { failedSyncs } from '@/db/schema/failedSyncs.schema'
 import { syncedItems } from '@/db/schema/syncedItems.schema'
 import { syncLogs } from '@/db/schema/syncLogs.schema'
 
-// Service-level gate: sync is enabled for the workspace, but automatic product
-// sync is off. See isSyncDisabled.test.ts for the controller-level gate.
+// Workspace sync is on, but automatic product sync is off, so the service skips
+// the product. See isSyncDisabled.test.ts for the workspace-level gate.
 describe('POST /api/webhook — product.created (syncProductsAutomatically=false)', () => {
   const apis = setupProductCreatedTest()
 
