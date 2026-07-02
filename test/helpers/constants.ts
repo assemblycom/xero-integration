@@ -23,3 +23,21 @@ export const TEST_XERO_ITEM = {
   id: '44444444-4444-4444-8444-444444444444',
   other: '99999999-9999-4999-8999-999999999999',
 }
+
+// The Copilot client an invoice is billed to (client-billed happy path) and its
+// company. companyId must be a valid v4 uuid (InvoiceCreatedEventSchema.companyId).
+export const TEST_CLIENT = {
+  id: '55555555-5555-4555-8555-555555555555',
+  email: 'client@example.test',
+  givenName: 'Test',
+  familyName: 'Client',
+}
+export const TEST_COMPANY = { id: '66666666-6666-4666-8666-666666666666' }
+
+// The Copilot invoice and the Xero entities it maps to. Xero ids are v4 uuids
+// because synced_invoices.xeroInvoiceId / salesAccountId and synced_contacts.contactId
+// are uuid columns.
+export const TEST_INVOICE = { id: 'test-invoice-00000001', number: 'INV-0001' }
+export const TEST_XERO_CONTACT = { id: '77777777-7777-4777-8777-777777777777' }
+export const TEST_XERO_INVOICE = { id: '88888888-8888-4888-8888-888888888888' }
+export const TEST_SALES_ACCOUNT = { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }
