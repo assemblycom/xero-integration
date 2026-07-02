@@ -1,9 +1,9 @@
 import productCreatedPayload from '@test/fixtures/productCreated.webhook'
 import { TEST_PORTAL, TEST_PRODUCT } from '@test/helpers/constants'
 import { createMockXeroAPI } from '@test/helpers/mocks'
-import { setupProductCreatedTest } from '@test/helpers/productCreatedTestSetup'
 import { seedConnectedPortal } from '@test/helpers/seed'
 import { postWebhook } from '@test/helpers/webhook'
+import { setupWebhookTest } from '@test/helpers/webhookTestSetup'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
 import db from '@/db'
@@ -14,7 +14,7 @@ import { SyncEntityType, SyncEventType, SyncStatus, syncLogs } from '@/db/schema
 // createItems throws → no mapping row, but a FAILED sync log and a failed_syncs
 // record are written before the error is rethrown (500).
 describe('POST /api/webhook — product.created (Xero createItems fails)', () => {
-  const apis = setupProductCreatedTest(() => ({
+  const apis = setupWebhookTest(() => ({
     xero: createMockXeroAPI({
       createItems: vi.fn().mockRejectedValue(new Error('Xero is on fire')),
     }),

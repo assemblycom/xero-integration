@@ -1,8 +1,8 @@
 import productCreatedPayload from '@test/fixtures/productCreated.webhook'
 import { TEST_PORTAL, TEST_PRODUCT, TEST_XERO_ITEM } from '@test/helpers/constants'
-import { setupProductCreatedTest } from '@test/helpers/productCreatedTestSetup'
 import { seedConnectedPortal } from '@test/helpers/seed'
 import { postWebhook } from '@test/helpers/webhook'
+import { setupWebhookTest } from '@test/helpers/webhookTestSetup'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import db from '@/db'
@@ -11,7 +11,7 @@ import { syncedItems } from '@/db/schema/syncedItems.schema'
 import { SyncEntityType, SyncEventType, SyncStatus, syncLogs } from '@/db/schema/syncLogs.schema'
 
 describe('POST /api/webhook — product.created', () => {
-  const apis = setupProductCreatedTest()
+  const apis = setupWebhookTest()
 
   it('creates a Xero item, maps it in synced_items, and logs the sync as successful', async () => {
     await seedConnectedPortal()
