@@ -39,5 +39,9 @@ export const TEST_COMPANY = { id: '66666666-6666-4666-8666-666666666666' }
 // are uuid columns.
 export const TEST_INVOICE = { id: 'test-invoice-00000001', number: 'INV-0001' }
 export const TEST_XERO_CONTACT = { id: '77777777-7777-4777-8777-777777777777' }
-export const TEST_XERO_INVOICE = { id: '88888888-8888-4888-8888-888888888888' }
+// `total` is the dollar total invoice.paid passes to markInvoicePaid; a non-round
+// value catches an accidental cents/dollars conversion or rounding bug.
+export const TEST_XERO_INVOICE = { id: '88888888-8888-4888-8888-888888888888', total: 108.25 }
 export const TEST_SALES_ACCOUNT = { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }
+// Xero payment id. Valid v4 uuid because synced_payments.xeroPaymentId is a uuid column.
+export const TEST_XERO_PAYMENT = { id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' }
