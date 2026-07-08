@@ -1,11 +1,13 @@
 import {
   TEST_CLIENT,
   TEST_COMPANY,
+  TEST_INVOICE,
   TEST_PORTAL,
   TEST_SALES_ACCOUNT,
   TEST_XERO_CONTACT,
   TEST_XERO_INVOICE,
   TEST_XERO_ITEM,
+  TEST_XERO_PAYMENT,
 } from '@test/helpers/constants'
 import { type Mock, vi } from 'vitest'
 import { CopilotAPI } from '@/lib/copilot/CopilotAPI'
@@ -112,6 +114,14 @@ export function createMockXeroAPI(overrides: XeroAPIOverrides = {}) {
       invoiceNumber: invoice.invoiceNumber,
       status: 'AUTHORISED',
     })),
+    // invoice.paid: fetch the Xero invoice, then create the payment against it.
+    getInvoiceById: vi.fn().mockResolvedValue({
+      invoiceID: TEST_XERO_INVOICE.id,
+      invoiceNumber: TEST_INVOICE.number,
+      status: 'AUTHORISED',
+      total: TEST_XERO_INVOICE.total,
+    }),
+    markInvoicePaid: vi.fn().mockResolvedValue({ paymentID: TEST_XERO_PAYMENT.id }),
     ...overrides,
   }
 }

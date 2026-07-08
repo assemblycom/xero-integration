@@ -8,6 +8,7 @@ import {
   TEST_XERO_CONTACT,
   TEST_XERO_INVOICE,
   TEST_XERO_ITEM,
+  TEST_XERO_PAYMENT,
 } from '@test/helpers/constants'
 import type { InferInsertModel } from 'drizzle-orm'
 import type { TokenSet } from 'xero-node'
@@ -16,6 +17,8 @@ import { settings } from '@/db/schema/settings.schema'
 import { SyncedContactUserType, syncedContacts } from '@/db/schema/syncedContacts.schema'
 import { syncedInvoices } from '@/db/schema/syncedInvoices.schema'
 import { syncedItems } from '@/db/schema/syncedItems.schema'
+import { PaymentUserType, syncedPayments } from '@/db/schema/syncedPayments.schema'
+import { SyncEntityType, SyncEventType, SyncStatus, syncLogs } from '@/db/schema/syncLogs.schema'
 import { xeroConnections } from '@/db/schema/xeroConnections.schema'
 
 type ConnectionOverrides = Partial<InferInsertModel<typeof xeroConnections>>
@@ -131,6 +134,54 @@ export async function seedSyncedContact(overrides: SyncedContactOverrides = {}) 
   const [row] = await db
     .insert(syncedContacts)
     .values({ ...baseSyncedContact, ...overrides })
+    .returning()
+  return row
+}
+
+type SyncedPaymentOverrides = Partial<InferInsertModel<typeof syncedPayments>>
+
+const baseSyncedPayment: InferInsertModel<typeof syncedPayments> = {
+  portalId: TEST_PORTAL.id,
+  tenantId: TEST_PORTAL.tenantId,
+  copilotInvoiceId: TEST_INVOICE.id,
+  xeroInvoiceId: TEST_XERO_INVOICE.id,
+  copilotPaymentId: null,
+  xeroPaymentId: TEST_XERO_PAYMENT.id,
+  type: PaymentUserType.PAYMENT,
+}
+
+// Seeds a synced_payments row (an invoice payment) for the idempotency case.
+export async function seedSyncedPayment(overrides: SyncedPaymentOverrides = {}) {
+  const [row] = await db
+    .insert(syncedPayments)
+    .values({ ...baseSyncedPayment, ...overrides })
+    .returning()
+  return row
+}
+
+type SyncLogOverrides = Partial<InferInsertModel<typeof syncLogs>>
+
+const baseSyncLog: InferInsertModel<typeof syncLogs> = {
+  portalId: TEST_PORTAL.id,
+  tenantId: TEST_PORTAL.tenantId,
+  syncDate: new Date(),
+  entityType: SyncEntityType.INVOICE,
+  eventType: SyncEventType.CREATED,
+  status: SyncStatus.SUCCESS,
+  copilotId: TEST_INVOICE.id,
+  xeroId: TEST_XERO_INVOICE.id,
+  invoiceNumber: TEST_INVOICE.number,
+  customerName: `${TEST_CLIENT.givenName} ${TEST_CLIENT.familyName}`,
+  customerEmail: TEST_CLIENT.email,
+}
+
+// Seeds a prior invoice.created success sync log. invoice.paid inherits its
+// fields (entityType, invoiceNumber, customerName) into the paid log, so the
+// paid-log INSERT has the NOT-NULL entityType it needs.
+export async function seedSyncLog(overrides: SyncLogOverrides = {}) {
+  const [row] = await db
+    .insert(syncLogs)
+    .values({ ...baseSyncLog, ...overrides })
     .returning()
   return row
 }
