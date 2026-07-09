@@ -122,6 +122,11 @@ export function createMockXeroAPI(overrides: XeroAPIOverrides = {}) {
       total: TEST_XERO_INVOICE.total,
     }),
     markInvoicePaid: vi.fn().mockResolvedValue({ paymentID: TEST_XERO_PAYMENT.id }),
+    // invoice.voided: void the fetched Xero invoice.
+    voidInvoice: vi.fn().mockResolvedValue({
+      invoiceID: TEST_XERO_INVOICE.id,
+      status: 'VOIDED',
+    }),
     ...overrides,
   }
 }
