@@ -308,6 +308,7 @@ class SyncedInvoicesService extends AuthenticatedXeroService {
         syncLogsService.setTx(tx)
         await syncLogsService.createSyncLog({
           ...prevSyncLog,
+          entityType: SyncEntityType.INVOICE,
           eventType: SyncEventType.PAID,
           status: SyncStatus.SUCCESS,
           syncDate: new Date(),
