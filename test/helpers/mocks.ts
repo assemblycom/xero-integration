@@ -127,6 +127,11 @@ export function createMockXeroAPI(overrides: XeroAPIOverrides = {}) {
       invoiceID: TEST_XERO_INVOICE.id,
       status: 'VOIDED',
     }),
+    // invoice.deleted: delete the (voided) Xero invoice.
+    deleteInvoice: vi.fn().mockResolvedValue({
+      invoiceID: TEST_XERO_INVOICE.id,
+      status: 'DELETED',
+    }),
     ...overrides,
   }
 }
