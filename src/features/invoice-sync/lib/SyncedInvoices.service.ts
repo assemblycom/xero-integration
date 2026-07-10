@@ -407,6 +407,7 @@ class SyncedInvoicesService extends AuthenticatedXeroService {
       // Add to sync log
       await syncLogsService.createSyncLog({
         ...prevSyncLog,
+        entityType: SyncEntityType.INVOICE,
         eventType: SyncEventType.DELETED,
         status: SyncStatus.SUCCESS,
         syncDate: new Date(),
@@ -418,6 +419,7 @@ class SyncedInvoicesService extends AuthenticatedXeroService {
         error,
         failedSyncLogPayload: {
           ...prevSyncLog,
+          entityType: SyncEntityType.INVOICE,
           eventType: SyncEventType.DELETED,
         },
       })
