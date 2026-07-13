@@ -1,9 +1,12 @@
 import {
+  TEST_ASSET_ACCOUNT,
   TEST_CLIENT,
   TEST_COMPANY,
+  TEST_EXPENSE_ACCOUNT,
   TEST_INVOICE,
   TEST_PORTAL,
   TEST_SALES_ACCOUNT,
+  TEST_XERO_BANK_TXN,
   TEST_XERO_CONTACT,
   TEST_XERO_INVOICE,
   TEST_XERO_ITEM,
@@ -131,6 +134,33 @@ export function createMockXeroAPI(overrides: XeroAPIOverrides = {}) {
     deleteInvoice: vi.fn().mockResolvedValue({
       invoiceID: TEST_XERO_INVOICE.id,
       status: 'DELETED',
+    }),
+    // payment.succeeded: getAccounts=[] so accounts are created; no existing expense.
+    createFixedAssetsAccount: vi.fn(
+      async (_tenantId: string, account: { code: string; name: string }) => ({
+        accountID: TEST_ASSET_ACCOUNT.id,
+        code: account.code,
+        name: account.name,
+        type: 'BANK',
+        status: 'ACTIVE',
+      }),
+    ),
+    createExpenseAccount: vi.fn(
+      async (_tenantId: string, account: { code: string; name: string }) => ({
+        accountID: TEST_EXPENSE_ACCOUNT.id,
+        code: account.code,
+        name: account.name,
+        type: 'EXPENSE',
+        status: 'ACTIVE',
+        enablePaymentsToAccount: true,
+      }),
+    ),
+    // No existing expense by reference or legacy invoice-id match.
+    findBankTransactionByReference: vi.fn().mockResolvedValue(undefined),
+    findLegacyExpenseByInvoice: vi.fn().mockResolvedValue(undefined),
+    createBankTransaction: vi.fn().mockResolvedValue({
+      bankTransactionID: TEST_XERO_BANK_TXN.id,
+      status: 'AUTHORISED',
     }),
     ...overrides,
   }
