@@ -45,3 +45,20 @@ export const TEST_XERO_INVOICE = { id: '88888888-8888-4888-8888-888888888888', t
 export const TEST_SALES_ACCOUNT = { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }
 // Xero payment id. Valid v4 uuid because synced_payments.xeroPaymentId is a uuid column.
 export const TEST_XERO_PAYMENT = { id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' }
+
+// payment.succeeded: the Copilot payment id and the Xero SPEND bank-txn id (v4 uuid).
+export const TEST_PAYMENT = { id: 'test-payment-00000001' }
+export const TEST_XERO_BANK_TXN = { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc' }
+
+// Absorbed platform fee. `cents` is the single source; a non-round value catches
+// a /100 bug. dollars/dollarsString derive it for the line item and sync-log columns.
+const feeInCents = 237
+export const TEST_FEE = {
+  cents: feeInCents,
+  dollars: feeInCents / 100,
+  dollarsString: String(feeInCents / 100),
+}
+
+// Absorbed-fee asset + expense accounts. Only id is used; region codes asserted inline.
+export const TEST_ASSET_ACCOUNT = { id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd' }
+export const TEST_EXPENSE_ACCOUNT = { id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' }
