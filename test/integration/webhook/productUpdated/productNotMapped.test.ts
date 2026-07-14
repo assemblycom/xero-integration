@@ -19,6 +19,11 @@ describe('POST /api/webhook — product.updated (product not mapped)', () => {
     const res = await postWebhook(productUpdatedPayload)
     expect(res.status).toBe(200)
 
+    // Proves the no-mapping branch actually ran: the handler returns { items: [] }.
+    // The swallowed syncProductsAutomatically gate returns no data, so this would
+    // fail if that gate fired instead.
+    expect(await res.json()).toMatchObject({ data: { items: [] } })
+
     expect(apis.xero.updateItem).not.toHaveBeenCalled()
     expect(await db.select().from(syncLogs)).toHaveLength(0)
     expect(await db.select().from(syncedItems)).toHaveLength(0)
