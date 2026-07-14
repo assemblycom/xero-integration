@@ -5,6 +5,7 @@ import {
   TEST_EXPENSE_ACCOUNT,
   TEST_INVOICE,
   TEST_PORTAL,
+  TEST_PRODUCT,
   TEST_SALES_ACCOUNT,
   TEST_XERO_BANK_TXN,
   TEST_XERO_CONTACT,
@@ -45,6 +46,10 @@ export function createMockCopilotAPI(overrides: CopilotAPIOverrides = {}) {
       fallbackColor: null,
       createdAt: '2026-01-01T00:00:00.000Z',
     }),
+    // product.updated: Copilot product lookup for the sync-log productName.
+    getProductsMapById: vi.fn().mockResolvedValue({
+      [TEST_PRODUCT.id]: { id: TEST_PRODUCT.id, name: 'Updated Product' },
+    }),
     ...overrides,
   }
 }
@@ -71,6 +76,29 @@ export function createMockXeroAPI(overrides: XeroAPIOverrides = {}) {
     ),
     // Item lookup for line-item mapping; empty so lines fall back to the copilot description.
     getItems: vi.fn().mockResolvedValue([]),
+    // product.updated: item lookup returns the mapped item with its code + name,
+    // used both for the updateItem code arg and the sync-log display name.
+    getItemsMap: vi.fn().mockResolvedValue({
+      [TEST_XERO_ITEM.id]: {
+        itemID: TEST_XERO_ITEM.id,
+        code: TEST_XERO_ITEM.code,
+        name: 'Xero Item Name',
+        description: 'Old description',
+      },
+    }),
+    // Echoes back the updated item so the service records it.
+    updateItem: vi.fn(
+      async (
+        _tenantId: string,
+        itemID: string,
+        item: { code: string; name: string; description?: string },
+      ) => ({
+        itemID,
+        code: item.code,
+        name: item.name,
+        description: item.description,
+      }),
+    ),
     // No pre-existing accounts, so the sales account is created on the region-default path.
     getAccounts: vi.fn().mockResolvedValue([]),
     createSalesAccount: vi.fn(
