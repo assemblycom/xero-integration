@@ -17,11 +17,13 @@ export const TEST_TOKENS = {
 }
 
 // A Copilot product and the Xero item it maps to. `other` is a second item id
-// for asserting a pre-existing mapping is left untouched.
+// for asserting a pre-existing mapping is left untouched. `code` is the Xero
+// item code product.updated resends on every update.
 export const TEST_PRODUCT = { id: '33333333-3333-4333-8333-333333333333' }
 export const TEST_XERO_ITEM = {
   id: '44444444-4444-4444-8444-444444444444',
   other: '99999999-9999-4999-8999-999999999999',
+  code: 'TEST-ITEM-CODE',
 }
 
 // The Copilot client an invoice is billed to (client-billed happy path) and its
