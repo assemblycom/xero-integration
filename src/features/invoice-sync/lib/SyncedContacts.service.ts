@@ -140,26 +140,59 @@ class SyncedContactsService extends AuthenticatedXeroService {
     }
 
     const syncLogsService = new SyncLogsService(this.user, this.connection)
+    const clientOrCompanyId = isNotPlaceholderCompany ? companyId : z.string().parse(client?.id)
+    const contactUserType = isNotPlaceholderCompany
+      ? SyncedContactUserType.COMPANY
+      : SyncedContactUserType.CLIENT
 
     try {
       const contact = await this.xero.createContact(this.connection.tenantId, contactPayload)
+      const contactId = z.string().parse(contact.contactID)
 
-      await this.db.insert(syncedContacts).values({
-        portalId: this.user.portalId,
-        clientOrCompanyId: isNotPlaceholderCompany ? companyId : z.string().parse(client?.id),
-        userType: isNotPlaceholderCompany
-          ? SyncedContactUserType.COMPANY
-          : SyncedContactUserType.CLIENT,
-        contactId: z.string().parse(contact.contactID),
-        tenantId: this.connection.tenantId,
-      })
+      // Ignore a duplicate from a concurrent sync instead of failing.
+      const [inserted] = await this.db
+        .insert(syncedContacts)
+        .values({
+          portalId: this.user.portalId,
+          clientOrCompanyId,
+          userType: contactUserType,
+          contactId,
+          tenantId: this.connection.tenantId,
+        })
+        .onConflictDoNothing({
+          target: [
+            syncedContacts.portalId,
+            syncedContacts.tenantId,
+            syncedContacts.clientOrCompanyId,
+          ],
+        })
+        .returning({ contactId: syncedContacts.contactId })
+
+      // A concurrent sync won the insert; reuse its stored contact.
+      if (!inserted) {
+        const [existing] = await this.db
+          .select({ contactId: syncedContacts.contactId })
+          .from(syncedContacts)
+          .where(
+            and(
+              eq(syncedContacts.portalId, this.user.portalId),
+              eq(syncedContacts.tenantId, this.connection.tenantId),
+              eq(syncedContacts.clientOrCompanyId, clientOrCompanyId),
+            ),
+          )
+        logger.info(
+          'SyncedContactsService#createContact :: Mapping already exists, reusing contact',
+          existing?.contactId,
+        )
+        return { ...contact, contactID: z.string().parse(existing?.contactId) }
+      }
 
       await syncLogsService.createSyncLog({
         entityType: SyncEntityType.CUSTOMER,
         eventType: SyncEventType.CREATED,
         status: SyncStatus.SUCCESS,
         syncDate: new Date(),
-        copilotId: isNotPlaceholderCompany ? companyId : z.string().parse(client?.id),
+        copilotId: clientOrCompanyId,
         xeroId: contact.contactID,
         customerName: contact.name,
         customerEmail: contact.emailAddress,
@@ -167,7 +200,7 @@ class SyncedContactsService extends AuthenticatedXeroService {
 
       return {
         ...contact,
-        contactID: z.string().parse(contact.contactID),
+        contactID: contactId,
       }
     } catch (error: unknown) {
       throw new APIError('Failed to create synced contact', status.INTERNAL_SERVER_ERROR, {
@@ -175,7 +208,7 @@ class SyncedContactsService extends AuthenticatedXeroService {
         failedSyncLogPayload: {
           entityType: SyncEntityType.CUSTOMER,
           eventType: SyncEventType.CREATED,
-          copilotId: isNotPlaceholderCompany ? companyId : z.string().parse(client?.id),
+          copilotId: clientOrCompanyId,
           customerName: contactPayload.name,
           customerEmail: contactPayload.emailAddress,
         },
