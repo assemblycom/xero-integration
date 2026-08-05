@@ -38,6 +38,9 @@ class SyncedInvoicesService extends AuthenticatedXeroService {
     xeroInvoiceId: string | null
     salesAccountId: string | null
     status: NonNullable<SyncedInvoiceCreatePayload['status']>
+    // Exposed so callers reuse it instead of resolving the contact again.
+    customerName?: string
+    customerEmail?: string
   }> {
     logger.info('SyncedInvoicesService#syncInvoiceToXero :: Syncing invoice to xero:', data.id)
 
@@ -160,7 +163,7 @@ class SyncedInvoicesService extends AuthenticatedXeroService {
     logger.info(
       `SyncedInvoicesService#syncInvoiceToXero :: Synced Copilot invoice ${syncedInvoiceRecord.copilotInvoiceId} (${syncedInvoice?.invoiceNumber}) to Xero invoice ${syncedInvoiceRecord.xeroInvoiceId} for portalId ${this.connection.portalId}`,
     )
-    return syncedInvoiceRecord
+    return { ...syncedInvoiceRecord, customerName, customerEmail }
   }
 
   private async createMissingXeroInvoice(copilotInvoiceId: string) {
@@ -169,15 +172,21 @@ class SyncedInvoicesService extends AuthenticatedXeroService {
       copilotInvoiceId,
     )
     const invoice = await this.copilot.getInvoice(copilotInvoiceId)
-    const [record, contact] = await Promise.all([
-      this.syncInvoiceToXero(invoice),
-      this.getContact(invoice),
-    ])
-    if (!('xeroInvoiceId' in record) || !record.xeroInvoiceId) {
+    // Reuse the contact syncInvoiceToXero resolved; a second fetch here races it.
+    const record = await this.syncInvoiceToXero(invoice)
+    if (!record.xeroInvoiceId) {
       throw new APIError(
         `Failed to create Xero invoice for Copilot invoice ${copilotInvoiceId}`,
         status.INTERNAL_SERVER_ERROR,
       )
+    }
+
+    // Already-synced short-circuit returns no contact; fetch it for the log.
+    let { customerName, customerEmail } = record
+    if (!customerName && !customerEmail) {
+      const contact = await this.getContact(invoice)
+      customerName = contact.name
+      customerEmail = contact.emailAddress
     }
 
     const syncLogsService = new SyncLogsService(this.user, this.connection)
@@ -191,8 +200,8 @@ class SyncedInvoicesService extends AuthenticatedXeroService {
       invoiceNumber: invoice.number,
       copilotId: invoice.id,
       xeroId: record.xeroInvoiceId,
-      customerEmail: contact.emailAddress,
-      customerName: contact.name,
+      customerEmail,
+      customerName,
     })
 
     return record
