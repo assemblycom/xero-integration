@@ -34,6 +34,9 @@ describe('POST /api/webhook — invoice.paid missing Xero invoice', () => {
     expect(apis.xero.createInvoice).toHaveBeenCalledTimes(1)
     expect(apis.xero.markInvoicePaid).toHaveBeenCalledTimes(1)
 
+    // Contact resolved once; the old path resolved it twice and self-raced.
+    expect(apis.xero.createContact).toHaveBeenCalledTimes(1)
+
     // Invoice row now mapped to Xero and marked success.
     const invoices = await db.select().from(syncedInvoices)
     expect(invoices).toHaveLength(1)
