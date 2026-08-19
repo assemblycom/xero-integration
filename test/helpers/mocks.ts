@@ -4,7 +4,6 @@ import {
   TEST_COMPANY,
   TEST_EXPENSE_ACCOUNT,
   TEST_INVOICE,
-  TEST_PORTAL,
   TEST_PRODUCT,
   TEST_SALES_ACCOUNT,
   TEST_XERO_BANK_TXN,
@@ -31,10 +30,6 @@ type XeroAPIOverrides = MockMethodOverrides<XeroAPI>
 // Mocked CopilotAPI. Override any method per test via `overrides`.
 export function createMockCopilotAPI(overrides: CopilotAPIOverrides = {}) {
   return {
-    getTokenPayload: vi.fn().mockResolvedValue({
-      workspaceId: TEST_PORTAL.id,
-      internalUserId: TEST_PORTAL.internalUserId,
-    }),
     getClient: vi.fn().mockResolvedValue({
       id: TEST_CLIENT.id,
       givenName: TEST_CLIENT.givenName,

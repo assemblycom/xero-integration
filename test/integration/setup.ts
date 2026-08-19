@@ -1,3 +1,4 @@
+import { decodeTokenPayloadOrDefault } from '@test/helpers/tokenMock'
 import { vi } from 'vitest'
 
 /**
@@ -7,8 +8,8 @@ import { vi } from 'vitest'
  * (see test/helpers/mocks.ts).
  *
  * Why explicit factories: importing the real CopilotAPI/XeroAPI modules pulls in
- * external SDKs (copilot-node-sdk, xero-node) that run side effects and read env
- * at import time. The factory keeps the real modules out of the graph entirely.
+ * external SDKs (@assembly-js/node-sdk, xero-node) that run side effects and read
+ * env at import time. The factory keeps the real modules out of the graph entirely.
  *
  * Why pin mocks on globalThis: this setupFile can be evaluated more than once per
  * run under `pool: 'forks' + fileParallelism: false + isolate: false`. Pinning the
@@ -35,6 +36,14 @@ vi.mock('@/lib/copilot/CopilotAPI', () => ({
 
 vi.mock('@/lib/xero/XeroAPI', () => ({
   default: mocks.XeroAPI,
+}))
+
+// Mock the Assembly SDK so tests skip the network and never import its broken
+// ESM build. getTokenPayload decodes the token (see tokenMock).
+vi.mock('@assembly-js/node-sdk', () => ({
+  assemblyApi: vi.fn(async ({ token }: { token?: string }) => ({
+    getTokenPayload: vi.fn(async () => decodeTokenPayloadOrDefault(token)),
+  })),
 }))
 
 // withRetry.ts calls `scope.addEventProcessor(...)` inside Sentry.withScope, so
