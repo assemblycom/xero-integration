@@ -9,7 +9,7 @@ class BaseService {
   db: DB
 
   constructor(protected readonly user: User) {
-    this.copilot = new CopilotAPI(user.token)
+    this.copilot = new CopilotAPI(user.portalId)
     this.db = db
   }
 

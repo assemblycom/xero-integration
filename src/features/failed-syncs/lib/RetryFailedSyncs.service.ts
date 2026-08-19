@@ -52,7 +52,7 @@ class RetryFailedSyncsService {
             continue
           }
 
-          const products = await new CopilotAPI(token).getProductsMapById([productId])
+          const products = await new CopilotAPI(user.portalId).getProductsMapById([productId])
           const product = products[productId]
           if (!product) {
             logger.warn(
