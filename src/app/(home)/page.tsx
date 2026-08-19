@@ -197,7 +197,8 @@ const Home = async ({ searchParams }: PageProps) => {
 
   const authService = new AuthService(user)
 
-  const copilot = new CopilotAPI(user.token)
+  // user.portalId is the workspaceId decoded during User.authenticate.
+  const copilot = new CopilotAPI(user.portalId)
   const [rawConnection, workspace] = await Promise.all([
     authService.authorizeXeroForCopilotWorkspace(true),
     copilot.getWorkspace(),

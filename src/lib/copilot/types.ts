@@ -124,24 +124,22 @@ export const NotificationRequestBodySchema = z.object({
   recipientInternalUserId: z.string().optional(),
   recipientClientId: z.string().optional(),
   recipientCompanyId: z.string().optional(),
-  deliveryTargets: z
-    .object({
-      inProduct: z
-        .object({
-          title: z.string(),
-          body: z.string().optional(),
-        })
-        .optional(),
-      email: z
-        .object({
-          subject: z.string().optional(),
-          header: z.string().optional(),
-          title: z.string().optional(),
-          body: z.string().optional(),
-        })
-        .optional(),
-    })
-    .optional(),
+  deliveryTargets: z.object({
+    inProduct: z
+      .object({
+        title: z.string(),
+        body: z.string().optional(),
+      })
+      .optional(),
+    email: z
+      .object({
+        subject: z.string(),
+        header: z.string(),
+        title: z.string(),
+        body: z.string().optional(),
+      })
+      .optional(),
+  }),
 })
 export type NotificationRequestBody = z.infer<typeof NotificationRequestBodySchema>
 
