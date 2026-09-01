@@ -4,6 +4,8 @@
   "version": "0.1.0",
   "scripts": {
     "dev": "next dev --turbopack",
+    "trigger:dev": "npx trigger.dev@4.4.4 dev",
+    "trigger:deploy": "npx trigger.dev@4.4.4 deploy",
     "build": "next build --turbopack",
     "build:all": "sh scripts/build/build.sh",
     "start": "next start",
@@ -21,7 +23,10 @@
   },
   "dependencies": {
     "@assembly-js/node-sdk": "^4.2.2",
+    "@sentry/esbuild-plugin": "^4.6.1",
     "@sentry/nextjs": "^10.29.0",
+    "@trigger.dev/build": "4.4.4",
+    "@trigger.dev/sdk": "4.4.4",
     "@types/deep-equal": "^1.0.4",
     "@types/html-to-text": "^9.0.4",
     "bottleneck": "^2.19.5",
