@@ -1,0 +1,161 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  CI: true
+
+# Actions are pinned to full commit SHAs, not @v4 tags: tags are mutable,
+# and the deploy job runs these before handing production secrets to the
+# deploy step. A moved tag must not run here. Bump SHA + version comment together.
+jobs:
+  lint:
+    name: Run linter
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: 10.15
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            **/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run linter
+        run: pnpm lint
+
+  typecheck:
+    name: TypeScript type-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: 10.15
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            **/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Type check
+        run: pnpm typecheck
+
+  test:
+    name: Integration tests
+    # Testcontainers spins up a real Postgres via the Docker daemon that
+    # ubuntu-latest runners provide out of the box — no `services:` needed.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: 10.15
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            **/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run tests
+        run: pnpm test
+
+  deploy:
+    name: Deploy to Trigger.dev
+    needs: [lint, typecheck, test]
+    runs-on: ubuntu-latest
+    environment: Production
+    timeout-minutes: 20
+    # Serialize deploys and never cancel one mid-publish: a newer push waits
+    # rather than interrupting an in-flight production deploy.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with:
+          version: 10.15
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            **/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Skip if a newer commit already landed on the branch, so a slower older
+      # run can't publish stale code over a newer deploy.
+      - name: Skip if a newer commit is on the branch
+        id: freshness
+        run: |
+          git fetch --depth=1 origin "$GITHUB_REF_NAME"
+          latest="$(git rev-parse FETCH_HEAD)"
+          if [ "$GITHUB_SHA" != "$latest" ]; then
+            echo "Newer commit $latest on $GITHUB_REF_NAME; skipping stale deploy of $GITHUB_SHA."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy to Trigger.dev production
+        if: steps.freshness.outputs.skip != 'true'
+        run: pnpm trigger:deploy
+        env:
+          TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
+          TRIGGER_PROJECT_ID: ${{ secrets.TRIGGER_PROJECT_ID }}
+          VERCEL_ENV: production
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          NEXT_PUBLIC_SENTRY_DSN: ${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
