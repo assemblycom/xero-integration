@@ -12,6 +12,9 @@ export default defineConfig({
     },
   },
   test: {
+    // Reset vi.fn() call history between tests; inherited by both projects
+    // (extends: true) so per-test call-count assertions stay isolated.
+    clearMocks: true,
     // Coverage is shared across projects; run `pnpm test` to cover both.
     coverage: {
       provider: 'v8',
@@ -29,7 +32,6 @@ export default defineConfig({
           include: ['test/unit/**/*.test.ts'],
           // Loads .env.test so modules that validate env at import don't throw.
           setupFiles: ['./test/unit/setup.ts'],
-          clearMocks: true,
           // Own group so it can differ from integration's single-worker settings.
           sequence: { groupOrder: 0 },
         },
@@ -54,10 +56,8 @@ export default defineConfig({
           // the shared test DB.
           fileParallelism: false,
           // Share module state (incl. the `@/db` connection singleton) across files.
+          // clearMocks (inherited from root) still resets call history between tests.
           isolate: false,
-          // isolate:false keeps vi.fn() call history across files; reset it between
-          // tests so per-test call-count assertions aren't polluted by earlier tests.
-          clearMocks: true,
           // Runs after the unit group, so its single-worker container run is isolated.
           sequence: { groupOrder: 1 },
         },
