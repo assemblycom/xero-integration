@@ -14,6 +14,16 @@ import XeroConnectionFailedError from '@/lib/xero/errors/XeroConnectionFailedErr
 import { encodePayload } from '@/utils/crypto'
 
 class RetryFailedSyncsService {
+  // Returns null for a dead Xero connection so the caller can skip the portal.
+  private async tryAuthorize(user: User): Promise<XeroConnectionWithTokenSet | null> {
+    try {
+      return await new AuthService(user).authorizeXeroForCopilotWorkspace()
+    } catch (e: unknown) {
+      if (e instanceof XeroConnectionFailedError) return null
+      throw e
+    }
+  }
+
   async retryFailedSyncs() {
     const failedSyncRecords = await db
       .select()
@@ -31,18 +41,14 @@ class RetryFailedSyncsService {
         const token = encodePayload(env.COPILOT_API_KEY, { workspaceId: failedSync.portalId })
         const user = await User.authenticate(token)
 
-        let connection: XeroConnectionWithTokenSet
-        try {
-          connection = await new AuthService(user).authorizeXeroForCopilotWorkspace()
-        } catch (e: unknown) {
-          // Dead connection, mark portal to skip its other records this run.
-          if (e instanceof XeroConnectionFailedError) {
-            deadPortals.add(failedSync.portalId)
-            logger.info('Xero connection inactive, skipping resync for portal', failedSync.portalId)
-            continue
-          }
-          throw e
+        const connection = await this.tryAuthorize(user)
+        if (!connection) {
+          // Dead connection, skip this portal's other records this run.
+          deadPortals.add(failedSync.portalId)
+          logger.info('Xero connection inactive, skipping resync for portal', failedSync.portalId)
+          continue
         }
+
         logger.info('Found connection', connection.id)
 
         const webhookService = new WebhookService(user, connection)
