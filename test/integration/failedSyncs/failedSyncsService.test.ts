@@ -49,4 +49,14 @@ describe('FailedSyncsService', () => {
 
     expect(await rows()).toHaveLength(0)
   })
+
+  it('does not delete a record belonging to a different tenant', async () => {
+    const svc = await service()
+    await svc.addFailedSyncRecord(TEST_PORTAL.tenantId, ValidWebhookEvent.ProductCreated, payload)
+
+    const otherTenantId = '99999999-9999-4999-8999-999999999999'
+    await svc.deleteFailedSync(TEST_PORTAL.id, otherTenantId, 'resource-1')
+
+    expect(await rows()).toHaveLength(1)
+  })
 })

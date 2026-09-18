@@ -104,6 +104,16 @@ describe('RetryFailedSyncsService#retryFailedSyncs', () => {
     expect(apis.xero.createItems).not.toHaveBeenCalled()
   })
 
+  it('still retries a record at exactly the retry cap', async () => {
+    await seedConnectedPortal()
+    await insertFailedSync({ attempts: MAX_RETRY_ATTEMPTS })
+
+    await new RetryFailedSyncsService().retryFailedSyncs()
+
+    expect(await remaining()).toHaveLength(0)
+    expect(apis.xero.createItems).toHaveBeenCalled()
+  })
+
   it('excludes records past the retry cap', async () => {
     await seedConnectedPortal()
     await insertFailedSync({ attempts: MAX_RETRY_ATTEMPTS + 1 })
