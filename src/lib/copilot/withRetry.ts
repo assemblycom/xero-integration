@@ -52,9 +52,10 @@ export const withRetry = async <Args extends unknown[], R>(
           error,
         )
       },
-      shouldRetry: (error: unknown) => {
+      shouldRetry: (context: { error: unknown }) => {
+        // p-retry passes a context object; the error is on context.error.
         // Typecasting because Copilot doesn't export an error class
-        const err = error as StatusableError
+        const err = context.error as StatusableError
         // Retry only if statusCode indicates a ratelimit or Internal Server Error
         return err.status === 429 || err.status === 500
       },
