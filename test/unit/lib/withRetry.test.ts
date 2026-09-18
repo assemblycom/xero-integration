@@ -23,9 +23,9 @@ describe('withRetry', () => {
     expect(fn).toHaveBeenCalledTimes(1)
   })
 
-  it('retries on a 429 up to the retry limit', async () => {
+  it.each([429, 500])('retries a %i up to the retry limit', async (status) => {
     vi.useFakeTimers()
-    const fn = vi.fn().mockRejectedValue(statusError(429))
+    const fn = vi.fn().mockRejectedValue(statusError(status))
 
     const result = withRetry(fn, []).catch((e) => e)
     // Drive the exponential backoff (1s + 2s + 4s) past its cap.
