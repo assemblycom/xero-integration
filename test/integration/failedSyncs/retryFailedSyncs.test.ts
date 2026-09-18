@@ -1,7 +1,7 @@
 import { MAX_RETRY_ATTEMPTS } from '@failed-syncs/lib/constants'
 import RetryFailedSyncsService from '@failed-syncs/lib/RetryFailedSyncs.service'
 import { ValidWebhookEvent } from '@invoice-sync/types'
-import { TEST_PORTAL, TEST_PRODUCT } from '@test/helpers/constants'
+import { TEST_PORTAL, TEST_PRODUCT, TEST_XERO_ITEM } from '@test/helpers/constants'
 import { createMockCopilotAPI } from '@test/helpers/mocks'
 import { seedConnectedPortal } from '@test/helpers/seed'
 import { setupWebhookTest } from '@test/helpers/webhookTestSetup'
@@ -59,12 +59,21 @@ describe('RetryFailedSyncsService#retryFailedSyncs', () => {
       resourceId: 'product-b',
       payload: { id: 'product-b', name: 'B', description: 'Desc' },
     })
-    apis.xero.createItems.mockRejectedValueOnce(new Error('boom'))
+    // Fail only product-a's sync, regardless of processing order.
+    apis.xero.createItems.mockImplementation(
+      (_tenantId: string, items: { code: string; name: string; description?: string }[]) => {
+        if (items.some((item) => item.name === 'A')) throw new Error('boom')
+        return items.map((item) => ({ itemID: TEST_XERO_ITEM.id, ...item }))
+      },
+    )
 
     await new RetryFailedSyncsService().retryFailedSyncs()
 
-    // One record failed and is kept; the other succeeded and was deleted.
-    expect(await remaining()).toHaveLength(1)
+    // product-a failed and is kept; product-b succeeded and was deleted.
+    const rows = await remaining()
+    expect(rows).toHaveLength(1)
+    expect(rows[0].resourceId).toBe('product-a')
+    expect(apis.xero.createItems).toHaveBeenCalledTimes(2)
   })
 
   it('resolves a legacy price.created to product.created', async () => {
