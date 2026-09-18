@@ -6,9 +6,11 @@ import { eq, lte } from 'drizzle-orm'
 import env from '@/config/server.env'
 import db from '@/db'
 import { failedSyncs } from '@/db/schema/failedSyncs.schema'
+import type { XeroConnectionWithTokenSet } from '@/db/schema/xeroConnections.schema'
 import { CopilotAPI } from '@/lib/copilot/CopilotAPI'
 import User from '@/lib/copilot/models/User.model'
 import logger from '@/lib/logger'
+import XeroConnectionFailedError from '@/lib/xero/errors/XeroConnectionFailedError'
 import { encodePayload } from '@/utils/crypto'
 
 class RetryFailedSyncsService {
@@ -18,24 +20,29 @@ class RetryFailedSyncsService {
       .from(failedSyncs)
       .where(lte(failedSyncs.attempts, MAX_RETRY_ATTEMPTS))
 
-    const tokenMap: Record<string, string> = {}
+    // Portals whose Xero connection failed auth this run, skip their other records.
+    const deadPortals = new Set<string>()
+
     for (const failedSync of failedSyncRecords) {
+      if (deadPortals.has(failedSync.portalId)) continue
+
       try {
         logger.info('Retrying failed sync', failedSync.id)
-        const token =
-          tokenMap[failedSync.portalId] ||
-          (() => {
-            const newToken = encodePayload(env.COPILOT_API_KEY, {
-              workspaceId: failedSync.portalId,
-            })
-            tokenMap[failedSync.portalId] = newToken
-            return newToken
-          })()
-
+        const token = encodePayload(env.COPILOT_API_KEY, { workspaceId: failedSync.portalId })
         const user = await User.authenticate(token)
 
-        const authService = new AuthService(user)
-        const connection = await authService.authorizeXeroForCopilotWorkspace()
+        let connection: XeroConnectionWithTokenSet
+        try {
+          connection = await new AuthService(user).authorizeXeroForCopilotWorkspace()
+        } catch (e: unknown) {
+          // Dead connection, mark portal to skip its other records this run.
+          if (e instanceof XeroConnectionFailedError) {
+            deadPortals.add(failedSync.portalId)
+            logger.info('Xero connection inactive, skipping resync for portal', failedSync.portalId)
+            continue
+          }
+          throw e
+        }
         logger.info('Found connection', connection.id)
 
         const webhookService = new WebhookService(user, connection)
